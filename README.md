@@ -8,3 +8,6 @@ Sojin Lee,
 Hyunwoo J. Kim†.
 
 This repository is an official implementation of the ICLR 2024 paper DDMI (Domain-Agnostic Latent Diffusion Models for Synthesizing High-Quality Implicit Neural Representations).
+
+
+Codes will be released soon.
