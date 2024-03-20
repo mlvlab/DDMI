@@ -12,15 +12,5 @@ This repository is an official implementation of the ICLR 2024 paper DDMI (Domai
 <div align="center">
   <img src="asset/main.png" width="900px" />
 </div>
-
-## Setup
-To install requirements, run:
-```
-git clone https://github.com/mlvlab/DDMI.git
-cd DDMI
-conda env create -f requirements.yaml
-conda activate ddmi
-```
-
-## Training
+Codes will be released soon.
 
