@@ -63,7 +63,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --multi_gpu --num_processes=4 mai
 ```
 
 ## Generation
-You can generate a signal from the pretrained model in `./results` by changing the `mode` of config files to `eval` from `train`, then run:
+You can generate a signal from the pre-trained model in `./results` by changing the `mode` of config files to `eval` from `train`, then run:
 ```bash
 python main.py --exp ldm --configs configs/ldm/img.yaml
 ```
