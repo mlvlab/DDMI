@@ -20,7 +20,7 @@ We propose a latent diffusion model that generates hierarchically decomposed pos
 </div>
 
 ## Note
-Data preparation, training codes for occupancy, NeRF, and video, and checkpoints for the pretrained models will be released soon after the code refactoring.
+Data preparation, training codes for occupancy, NeRF, and video, and checkpoints for the pre-trained models will be released soon after the code refactoring.
 
 ## Setup
 To install requirements, run:
@@ -30,6 +30,7 @@ cd DDMI
 conda create -f requirements.yaml
 conda activate ddmi
 ```
+(RECOMMENDED, linux) Install latest stable with conda: Requires [PyTorch 2.2.0 with CUDA 11.8](https://pytorch.org/get-started/locally/)
 
 ## Data Preparation
 ### Image
