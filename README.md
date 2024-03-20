@@ -70,7 +70,7 @@ Data
 
 
 ## Training
-To train other signal domains, you may change the `domain` of config files in `configs/`. By default, the model's checkpoint will be stored in `./results`. If training D2C-VAE in the first-stage is unstable, i.e., NAN value, try increasing the weight of spectral regularization.
+To train other signal domains, you may change the `domain` of config files in `configs/`. By default, the model's checkpoint will be stored in `./results`. If training D2C-VAE in the first-stage is unstable, i.e., NAN value, try increasing `sn_reg_weight_decay` or `sn_reg_weight_decay_init` of config files to increase the weight of spectral regularization.
 ### First-stage training (D2C-VAE)
 ```bash
 CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --multi_gpu --num_processes=4 main.py --exp d2c-vae --configs configs/d2c-vae/img.yaml
