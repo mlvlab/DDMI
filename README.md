@@ -48,3 +48,17 @@ python main.py --exp ldm --configs configs/ldm/img.yaml
 For arbitrary-resolution 2D image generation, you can change `resolution`  of config files.
 
 
+## Acknowledgement
+This repo is built upon [ADM](https://github.com/openai/guided-diffusion) and [latent-diffusion](https://github.com/CompVis/latent-diffusionn).
+
+## Citation
+```bibtex
+@article{park2024ddmi,
+  title={DDMI: Domain-Agnostic Latent Diffusion Models for Synthesizing High-Quality Implicit Neural Representations},
+  author={Park, Dogyun and Kim, Sihyeon and Lee, Sojin and Kim, Hyunwoo J},
+  journal={arXiv preprint arXiv:2401.12517},
+  year={2024}
+}
+```
+
+
