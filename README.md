@@ -12,5 +12,20 @@ This repository is an official implementation of the ICLR 2024 paper DDMI (Domai
 <div align="center">
   <img src="asset/main.png" width="900px" />
 </div>
-Codes will be released soon.
+
+## Setup
+To install requirements, run:
+```
+git clone https://github.com/mlvlab/DDMI.git
+cd DDMI
+conda create -f requirements.yaml
+conda activate ddmi
+```
+
+## Training
+# First stage training
+```
+CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --multi_gpu --num_processes=4 main.py --exp ldm --configs confi
+gs/d2c-vae/img.yaml
+```
 
