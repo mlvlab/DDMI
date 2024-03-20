@@ -30,7 +30,7 @@ cd DDMI
 conda create -f requirements.yaml
 conda activate ddmi
 ```
-(RECOMMENDED, linux) Install [PyTorch 2.2.0 with CUDA 11.8](https://pytorch.org/get-started/locally/) for [xformers](https://github.com/facebookresearch/xformers/edit/main/README.md).
+(RECOMMENDED, linux) Install [PyTorch 2.2.0 with CUDA 11.8](https://pytorch.org/get-started/locally/) for [xformers](https://github.com/facebookresearch/xformers/edit/main/README.md), and compatible [torch-scatter](https://data.pyg.org/whl/torch-2.2.0%2Bcu118.html).
 
 ## Data Preparation
 ### Image
