@@ -30,7 +30,7 @@ cd DDMI
 conda create -f requirements.yaml
 conda activate ddmi
 ```
-(RECOMMENDED, linux) Install latest stable with conda: Requires [PyTorch 2.2.0 with CUDA 11.8](https://pytorch.org/get-started/locally/)
+(RECOMMENDED, linux) Install [PyTorch 2.2.0 with CUDA 11.8](https://pytorch.org/get-started/locally/)
 
 ## Data Preparation
 ### Image
