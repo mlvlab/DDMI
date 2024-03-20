@@ -22,12 +22,14 @@ conda create -f requirements.yaml
 conda activate ddmi
 ```
 
-## Dataset preparation
+Data preparation and training codes for occupancy, NeRF, and video will be released soon.
+
+## Data preparation
 ### Image
-We have utilized two datasets for our experiments: [AFHQ-V2](https://github.com/clovaai/stargan-v2) and [CelebA-HQ](https://github.com/tkarras/progressive_growing_of_gans). You may change the location of dataset in `configs/` by changing the directory of dataset.
+We have utilized two datasets for our experiments: [AFHQ-V2](https://github.com/clovaai/stargan-v2) and [CelebA-HQ](https://github.com/tkarras/progressive_growing_of_gans). You may change the location of dataset by changing the directory of config files in `configs/`.
 
 ## Training
-Set dataset path, training Change the config files to train other signal domains. Codes for occupancy/NeRF/Video will be released soon.
+To train other signal domains, you may change the domain of config files in `configs/`.
 ### First stage training
 ```
 CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --multi_gpu --num_processes=4 main.py --exp d2c-vae --configs confi
