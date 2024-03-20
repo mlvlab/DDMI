@@ -13,7 +13,8 @@ This repository is an official implementation of the ICLR 2024 paper DDMI (Domai
   <img src="asset/main.png" width="900px" />
 </div>
 
-Note that data preparation, training codes for occupancy, NeRF, and video, and checkpoints for the pretrained models will be released soon.
+## Note
+Data preparation, training codes for occupancy, NeRF, and video, and checkpoints for the pretrained models will be released soon.
 
 ## Setup
 To install requirements, run:
