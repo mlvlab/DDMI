@@ -180,9 +180,6 @@ class D2CTrainer(object):
                     x = symmetrize_image_data(x) # 512x512
                     ## Resize image
                     target, coords, scale, y = multiscale_image_transform(x, self.args.resolution, self.multiscale, device)
-                    #self.opt.zero_grad()
-                    #if self.args.loss_config.adversarial:
-                    #    self.opt_d.zero_grad()
                     with self.accelerator.autocast():
                         if isinstance(self.model, torch.nn.parallel.DistributedDataParallel):
                             posterior = self.model.module.encode(y)

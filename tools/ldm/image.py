@@ -80,11 +80,6 @@ class LDMTrainer(object):
             self.vaemodel.load_state_dict(data_pth['model'])
             self.mlp.load_state_dict(data_pth['mlp'])
 
-        #config = {'ldm': self.ema.ema_model, 'vae': self.vaemodel, 'mlp': self.mlp}
-        #ddmi = DDMI(self.ema.ema_model, self.vaemodel, self.mlp)
-        #ddmi.push_to_hub('ddmi_afhqcat_ema')
-        #ddmi.from_pretrained('DogyunPark/ddmi_afhqcat_ema')
-        #import pdb; pdb.set_trace()
         # Wrap with accelerator
         self.data, self.vaemodel, self.mlp, self.diffusion_process, self.dae_opt = self.accelerator.prepare(self.data, self.vaemodel, self.mlp, self.diffusion_process, self.dae_opt)
 
@@ -210,27 +205,17 @@ class LDMTrainer(object):
                                             wstart=-(self.test_resolution-1)/self.test_resolution, 
                                             wend = (self.test_resolution-1)/self.test_resolution)
         
-        if 0:
-            self.ema.ema_model.eval()
-            with self.accelerator.autocast():
-                with torch.inference_mode():
-                    z_test = self.ema.ema_model.sample(batch_size = self.test_batch_size) / self.vae_scale_factor
-                    if isinstance(self.vaemodel, torch.nn.parallel.DistributedDataParallel):
-                        pe_test = self.vaemodel.module.decode(z_test)
-                    else:
-                        pe_test = self.vaemodel.decode(z_test)
-                    output_img = self.mlp(coords, hdbf=pe_test, si=1)
-            output_img = output_img.clamp(min = -1., max = 1.)
-            output_img = unsymmetrize_image_data(output_img)
+        
+        self.ema.ema_model.eval()
+        with self.accelerator.autocast():
+            with torch.inference_mode():
+                z_test = self.ema.ema_model.sample(batch_size = self.test_batch_size) / self.vae_scale_factor
+                if isinstance(self.vaemodel, torch.nn.parallel.DistributedDataParallel):
+                    pe_test = self.vaemodel.module.decode(z_test)
+                else:
+                    pe_test = self.vaemodel.decode(z_test)
+                output_img = self.mlp(coords, hdbf=pe_test, si=1)
+        output_img = output_img.clamp(min = -1., max = 1.)
+        output_img = unsymmetrize_image_data(output_img)
 
-            vtils.save_image(output_img, os.path.join(self.results_pth, 'Test-{}.png'.format(self.step)), normalize = False, scale_each = False)
-        
-        if 1:
-            fid = test_fid_ddpm_50k(self.ema, self.vaemodel, self.mlp, coords, self.data, self.accelerator, self.results_pth, save=True)
-            print('Step {} FID: {}'.format(self.step, fid))
-        
-        if self.test_data is not None and 0:
-            fid = test_fid_ddpm(self.ema, self.vaemodel, self.mlp, coords, self.test_data, self.accelerator, self.results_pth, save=True)
-            print('Step {} FID: {}'.format(self.step, fid))
-        else:
-            self.accelerator.print('Not found test dataset to evaluate!')
+        vtils.save_image(output_img, os.path.join(self.results_pth, 'Test-{}.png'.format(self.step)), normalize = False, scale_each = False)
