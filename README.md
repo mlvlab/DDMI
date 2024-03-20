@@ -24,9 +24,9 @@ conda activate ddmi
 
 ## Training
 ### First stage training
-Change config file to train other domains.
+Change the config files to train other signal domains.
 ```
-CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --multi_gpu --num_processes=4 main.py --exp ldm --configs confi
+CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --multi_gpu --num_processes=4 main.py --exp d2c-vae --configs confi
 gs/d2c-vae/img.yaml
 ```
 
@@ -35,4 +35,7 @@ gs/d2c-vae/img.yaml
 CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --multi_gpu --num_processes=4 main.py --exp ldm --configs confi
 gs/d2c-vae/img.yaml
 ```
+
+## Evaluation
+
 
