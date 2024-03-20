@@ -32,18 +32,19 @@ We have utilized two datasets for our experiments: [AFHQ-V2](https://github.com/
 To train other signal domains, you may change the `domain` of config files in `configs/`. By default, the model's checkpoint will be stored in `./results`.
 ### First-stage training (D2C-VAE)
 ```
-CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --multi_gpu --num_processes=4 main.py --exp d2c-vae --configs confi
-gs/d2c-vae/img.yaml
+CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --multi_gpu --num_processes=4 main.py --exp d2c-vae --configs configs/d2c-vae/img.yaml
 ```
 
 ### Second-stage training (LDM)
 ```
-CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --multi_gpu --num_processes=4 main.py --exp ldm --configs confi
-gs/d2c-vae/img.yaml
+CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --multi_gpu --num_processes=4 main.py --exp ldm --configs configs/ldm/img.yaml
 ```
 
-## Evaluation
-You can evaluate the pretrained model in `./results` by changing the `mode` of config files to `eval` from `train`.
+## Generation
+You can generate a signal from the pretrained model in `./results` by changing the `mode` of config files to `eval` from `train`, then run:
+```
+python main.py --exp ldm --configs configs/ldm/img.yaml
+```
 
 
 
