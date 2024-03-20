@@ -37,13 +37,7 @@ conda activate ddmi
 We have utilized two datasets for 2D image experiments: [AFHQ-V2](https://github.com/clovaai/stargan-v2) and [CelebA-HQ](https://github.com/tkarras/progressive_growing_of_gans). We have used `dog` and `cat` categories in AFHQ-V2 dataset. You may change the location of the dataset by changing `data_dir` of config files in `configs/`, and specify `test_data_dir` to measure r-FID during training. Each dataset should be structured as below:
 
 ```
-Train data
-|-- folder
-    |-- image1.png
-    |-- image2.png
-    |-- ...
-
-Test data
+Data
 |-- folder
     |-- image1.png
     |-- image2.png
@@ -53,7 +47,7 @@ Test data
 ### Video
 We have used dataloader from [PVDM](https://github.com/sihyun-yu/PVDM) and [SkyTimelapse](https://github.com/weixiong-ur/mdgan) dataset. Dataset should be structured as below:
 ```
-SkyTimelapse
+Data
 |-- train
     |-- video1
         |-- frame00000.png
