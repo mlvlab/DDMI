@@ -10,13 +10,13 @@ Hyunwoo J. Kim†.
 This repository is an official implementation of the ICLR 2024 paper DDMI (Domain-Agnostic Latent Diffusion Models for Synthesizing High-Quality Implicit Neural Representations).
 
 <div align="center">
-  <img src="asset/mainresult.png" width="900px" />
+  <img src="asset/mainresult.png" width="800px" />
 </div>
 
 ## Overall Framework
 We propose a latent diffusion model that generates hierarchically decomposed positional embeddings of Implicit neural representations, enabling high-quality generation on various data domains.
 <div align="center">
-  <img src="asset/main.png" width="900px" />
+  <img src="asset/main.png" width="800px" />
 </div>
 
 ## Note
@@ -34,7 +34,7 @@ conda activate ddmi
 
 ## Data Preparation
 ### Image
-We have utilized two datasets for our experiments: [AFHQ-V2](https://github.com/clovaai/stargan-v2) and [CelebA-HQ](https://github.com/tkarras/progressive_growing_of_gans). We have used `dog` and `cat` categories in AFHQ-V2 dataset. You may change the location of the dataset by changing `data_dir` of config files in `configs/`, and specify `test_data_dir` to measure r-FID during training. Each dataset should be structured as below:
+We have utilized two datasets for 2D image experiments: [AFHQ-V2](https://github.com/clovaai/stargan-v2) and [CelebA-HQ](https://github.com/tkarras/progressive_growing_of_gans). We have used `dog` and `cat` categories in AFHQ-V2 dataset. You may change the location of the dataset by changing `data_dir` of config files in `configs/`, and specify `test_data_dir` to measure r-FID during training. Each dataset should be structured as below:
 
 ```
 Train data
@@ -47,6 +47,28 @@ Test data
 |-- folder
     |-- image1.png
     |-- image2.png
+    |-- ...
+```
+
+### Video
+We have used dataloader from [PVDM](https://github.com/sihyun-yu/PVDM) and [SkyTimelapse](https://github.com/weixiong-ur/mdgan) dataset. Dataset should be structured as below:
+```
+SkyTimelapse
+|-- train
+    |-- video1
+        |-- frame00000.png
+        |-- frame00001.png
+        |-- ...
+    |-- video2
+        |-- frame00000.png
+        |-- frame00001.png
+        |-- ...
+    |-- ...
+|-- val
+    |-- video1
+        |-- frame00000.png
+        |-- frame00001.png
+        |-- ...
     |-- ...
 ```
 
@@ -71,7 +93,7 @@ For arbitrary-resolution 2D image generation with consistent content, you only h
 
 
 ## Acknowledgement
-This repo is built upon [ADM](https://github.com/openai/guided-diffusion) and [latent-diffusion](https://github.com/CompVis/latent-diffusion).
+This repo is built upon [ADM](https://github.com/openai/guided-diffusion), [latent-diffusion](https://github.com/CompVis/latent-diffusion), and [PVDM](https://github.com/sihyun-yu/PVDM).
 
 ## Citation
 ```bibtex
