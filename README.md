@@ -24,7 +24,7 @@ conda activate ddmi
 
 ## Dataset preparation
 ### Image
-We have utilized two datasets for our experiments: [AFHQ-V2](https://github.com/clovaai/stargan-v2) and [CelebA-HQ](https://github.com/tkarras/progressive_growing_of_gans). 
+We have utilized two datasets for our experiments: [AFHQ-V2](https://github.com/clovaai/stargan-v2) and [CelebA-HQ](https://github.com/tkarras/progressive_growing_of_gans). You may change the location of dataset in `configs/` by changing the directory of dataset.
 
 ## Training
 Set dataset path, training Change the config files to train other signal domains. Codes for occupancy/NeRF/Video will be released soon.
