@@ -45,7 +45,7 @@ Data
 ```
 
 ### Video
-We have used dataloader from [PVDM](https://github.com/sihyun-yu/PVDM) and [SkyTimelapse](https://github.com/weixiong-ur/mdgan) dataset. Dataset should be structured as below:
+We have used dataloader from [PVDM](https://github.com/sihyun-yu/PVDM) and [SkyTimelapse](https://github.com/weixiong-ur/mdgan) dataset. You may change the location of the dataset by changing `data_dir` of config files in `configs/`, and specify `test_data_dir` to measure r-FVD during training. Dataset should be structured as below:
 ```
 Data
 |-- train
