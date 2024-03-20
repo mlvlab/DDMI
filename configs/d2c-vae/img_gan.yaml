@@ -1,0 +1,59 @@
+model:
+  resume: True
+  use_fp16: True
+  amp: True
+  lr: 5e-5
+  embed_dim: 64
+  params:
+    lossconfig:
+      multiscale: True
+      adversarial: True
+      disc_weight: 1.
+      epochs: 1300
+      warmup_epochs: 5
+      kl_anneal: False
+      kl_max_coeff: 0.001
+      kl_const_coeff: 0.0001
+      kl_const_portion: 0.0001
+      kl_anneal_portion: 0.9
+      sn_reg: True
+      sn_reg_weight_decay: 1e-1
+      sn_reg_weight_decay_anneal: False
+      sn_reg_weight_decay_init: 5
+      lr_scheduler: False
+      save_and_sample_every: 20
+      gradient_accumulate_every: 5
+         
+    ddconfig:
+      double_z: True
+      z_channels: 128
+      resolution: 256
+      in_channels: 3
+      out_ch: 64
+      ch: 128
+      ch_mult:
+      - 1
+      - 2
+      - 4 
+      num_res_blocks: 2
+      attn_resolutions: []
+      hdbf_resolutions: [128, 64]
+      dropout: 0.0
+      attn_type: vanilla
+
+    mlpconfig:
+      in_ch: 2
+      out_ch: 3
+      ch: 256
+      latent_dim: 64
+
+
+data:
+  domain: image
+  mode: train
+  data_dir: ./train_data_path/
+  test_data_dir: ./test_data_path/
+  save_pth: ./save_pth/
+  batch_size: 4
+  test_batch_size: 16
+  test_resolution: 256

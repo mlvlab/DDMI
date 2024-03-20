@@ -1,0 +1,75 @@
+model:
+  resume: False
+  use_fp16: True
+  amp: True
+  lr: 1e-4
+  embed_dim: 64
+  params:
+    lossconfig:
+      epochs: 1500
+      save_and_sample_every: 25
+      ema_decay: 0.9999
+      ema_update_every: 10
+      gradient_accumulate_every: 5
+
+    unetconfig:
+      image_size: 64
+      in_channels: 64
+      model_channels: 256
+      out_channels: 64
+      attention_resolutions:
+      - 8
+      - 4
+      - 2
+      num_res_blocks: 2
+      channel_mult:
+      - 1
+      - 2
+      - 3
+      - 4
+      num_head_channels: 32
+      use_checkpoint: False
+      use_fp16: False
+
+    ddconfig:
+      double_z: True
+      z_channels: 128
+      resolution: 256
+      in_channels: 3
+      out_ch: 64
+      ch: 128
+      ch_mult:
+      - 1
+      - 2
+      - 4
+      num_res_blocks: 2
+      attn_resolutions: []
+      hdbf_resolutions: [128, 64]
+      dropout: 0.0
+      attn_type: vanilla
+
+    mlpconfig:
+      in_ch: 2
+      out_ch: 3
+      ch: 256
+      latent_dim: 64
+
+    ddpmconfig:
+      timesteps: 1000
+      image_size: 64
+      channels: 64
+      clip_denoised: False
+      mixed_prediction: True
+      mixed_init: -6
+      sampling_timesteps: 200
+      ddim_sampling_eta: 0.
+
+data:
+  domain: image
+  mode: eval
+  data_dir: ./train_data_path/
+  test_data_dir: ./test_data_path/
+  save_pth: ./save_pth/
+  batch_size: 25
+  test_batch_size: 6
+  test_resolution: 256
