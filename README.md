@@ -22,9 +22,13 @@ conda create -f requirements.yaml
 conda activate ddmi
 ```
 
+## Dataset preparation
+### Image
+For AFHQ-v2 dataset, we
+
 ## Training
+Set training Change the config files to train other signal domains. Codes for occupancy/NeRF/Video will be released soon.
 ### First stage training
-Change the config files to train other signal domains.
 ```
 CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --multi_gpu --num_processes=4 main.py --exp d2c-vae --configs confi
 gs/d2c-vae/img.yaml
@@ -37,5 +41,6 @@ gs/d2c-vae/img.yaml
 ```
 
 ## Evaluation
+
 
 
