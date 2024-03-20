@@ -45,6 +45,6 @@ You can generate a signal from the pretrained model in `./results` by changing t
 ```
 python main.py --exp ldm --configs configs/ldm/img.yaml
 ```
-
+For arbitrary-resolution 2D image generation, you can change `resolution`  of config files.
 
 
