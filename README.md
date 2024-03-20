@@ -23,7 +23,14 @@ conda activate ddmi
 ```
 
 ## Training
-# First stage training
+### First stage training
+Change config file to train other domains.
+```
+CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --multi_gpu --num_processes=4 main.py --exp ldm --configs confi
+gs/d2c-vae/img.yaml
+```
+
+### Second stage training
 ```
 CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --multi_gpu --num_processes=4 main.py --exp ldm --configs confi
 gs/d2c-vae/img.yaml
