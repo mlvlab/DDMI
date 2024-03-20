@@ -49,7 +49,7 @@ For arbitrary-resolution 2D image generation, you can change `resolution`  of co
 
 
 ## Acknowledgement
-This repo is built upon [ADM](https://github.com/openai/guided-diffusion) and [latent-diffusion](https://github.com/CompVis/latent-diffusionn).
+This repo is built upon [ADM](https://github.com/openai/guided-diffusion) and [latent-diffusion](https://github.com/CompVis/latent-diffusion).
 
 ## Citation
 ```bibtex
