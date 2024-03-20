@@ -27,7 +27,7 @@ conda activate ddmi
 
 ## Data Preparation
 ### Image
-We have utilized two datasets for our experiments: [AFHQ-V2](https://github.com/clovaai/stargan-v2) and [CelebA-HQ](https://github.com/tkarras/progressive_growing_of_gans). You may change the location of the dataset by changing `data_dir` of config files in `configs/`. We have used `dog` and `cat` categories in AFHQ-V2 dataset. Each dataset should be structured as below:
+We have utilized two datasets for our experiments: [AFHQ-V2](https://github.com/clovaai/stargan-v2) and [CelebA-HQ](https://github.com/tkarras/progressive_growing_of_gans). We have used `dog` and `cat` categories in AFHQ-V2 dataset. You may change the location of the dataset by changing `data_dir` of config files in `configs/`, and each dataset should be structured as below:
 
 ```
 Data
@@ -35,6 +35,7 @@ Data
     |-- image1.png
     |-- image2.png
     |-- ...
+```
 
 ## Training
 To train other signal domains, you may change the `domain` of config files in `configs/`. By default, the model's checkpoint will be stored in `./results`.
