@@ -66,6 +66,9 @@ Data
     |-- ...
 ```
 
+### 3D
+
+
 ## Training
 To train other signal domains, you may change the `domain` of config files in `configs/`. By default, the model's checkpoint will be stored in `./results`.
 ### First-stage training (D2C-VAE)
