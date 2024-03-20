@@ -10,11 +10,12 @@ Hyunwoo J. Kim†.
 This repository is an official implementation of the ICLR 2024 paper DDMI (Domain-Agnostic Latent Diffusion Models for Synthesizing High-Quality Implicit Neural Representations). We propose a latent diffusion model that generates hierarchically decomposed positional embeddings of Implicit neural representations, enabling high-quality generation on various data domains.
 
 <div align="center">
-  <img src="asset/main.png" width="900px" />
+  <img src="asset/mainresult.png" width="900px" />
 </div>
 
+## Overall Framework
 <div align="center">
-  <img src="asset/mainresult.png" width="800px" />
+  <img src="asset/main.png" width="900px" />
 </div>
 
 ## Note
