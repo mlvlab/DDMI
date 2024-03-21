@@ -70,8 +70,9 @@ Data
 
 
 ## Training
-To train other signal domains, you may change the `domain` of config files in `configs/`, e.g., `image`, `occupancy`, `nerf`, or `video`. Currently, different network is trained for different signal domain. By default, the model's checkpoint will be stored in `./results`. If training D2C-VAE in the first-stage is unstable, i.e., NAN value, try increasing `sn_reg_weight_decay` or `sn_reg_weight_decay_init` of config files to increase the weight of spectral regularization.
+To train other signal domains, you may change the `domain` of config files in `configs/`, e.g., `image`, `occupancy`, `nerf`, or `video`. Currently, different network is trained for different signal domain. By default, the model's checkpoint will be stored in `./results`. If training D2C-VAE in the first stage is unstable, i.e., NAN value, try increasing `sn_reg_weight_decay` or `sn_reg_weight_decay_init` of config files to increase the weight of spectral regularization.
 ### First-stage training (D2C-VAE)
+D2C-VAE aims to learn the latent space that generates PEs between discrete data and continuous function, i.e., point clouds to occupancy function, pixel image to continuous RGB image.
 ```bash
 CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --multi_gpu --num_processes=4 main.py --exp d2c-vae --configs configs/d2c-vae/img.yaml
 ```
