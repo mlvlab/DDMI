@@ -33,7 +33,7 @@ conda install pytorch==2.2.0 torchvision==0.17.0 torchaudio==2.2.0 pytorch-cuda=
 ```
 
 ```bash
-pip install accelerate omegaconf einops pyspng natsort av ema-pytorch timm ninja
+pip install accelerate omegaconf einops pyspng natsort av ema-pytorch timm ninja gdown scipy
 ```
 (RECOMMENDED, linux) Install [PyTorch 2.2.0 with CUDA 11.8](https://pytorch.org/get-started/locally/) for [xformers](https://github.com/facebookresearch/xformers/edit/main/README.md), recommended for memory-efficient computation. Also, install pytorch compatible [torch-scatter](https://data.pyg.org/whl/torch-2.2.0%2Bcu118.html) version for 3D.
 
