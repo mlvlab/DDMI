@@ -53,7 +53,7 @@ data:
   mode: train
   data_dir: ./train_data_path/
   test_data_dir: ./test_data_path/
-  save_pth: ./save_pth/
+  save_pth: ./results/d2c_vae/
   batch_size: 4
   test_batch_size: 16
   test_resolution: 256
