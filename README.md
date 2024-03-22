@@ -27,7 +27,7 @@ To install requirements, run:
 ```bash
 git clone https://github.com/mlvlab/DDMI.git
 cd DDMI
-conda create -n ddmi python==3.10
+conda create -n ddmi python==3.8
 conda activate ddmi
 conda install pytorch==2.2.0 torchvision==0.17.0 torchaudio==2.2.0 pytorch-cuda=11.8 -c pytorch -c nvidia
 ```
