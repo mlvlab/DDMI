@@ -69,7 +69,7 @@ Data
 ```
 
 ### 3D
-We have used [ShapeNet dataset v1](https://shapenet.org/) and dataloader following [Occupancy Networks](https://github.com/autonomousvision/occupancy_networks#preprocessed-data). You may change the location of the dataset by changing `data_dir` of config files in `configs/`. Dataset should be structured as below:
+We have used [ShapeNet dataset v1](https://shapenet.org/) and dataloader following [Occupancy Networks](https://github.com/autonomousvision/occupancy_networks#preprocessed-data). You may change the location of the dataset by changing `data_dir` of config files in `configs/`.
 
 
 ### NeRF
