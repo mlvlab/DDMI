@@ -3,12 +3,14 @@ import torch
 import torchvision
 import numpy as np
 import copy
+from PIL import Image
 from tqdm import tqdm
 from torchvision import utils as vtils
 import torchvision.transforms.functional as trans_F
 from timeit import default_timer as timer
 from accelerate import Accelerator
 from ema_pytorch import EMA
+
 
 from models.ddmi import DDMI
 from utils.general_utils import symmetrize_image_data, unsymmetrize_image_data, exists, convert_to_coord_format_2d
@@ -70,7 +72,7 @@ class LDMTrainer(object):
 
         if args.resume:
             print('Loading Models from previous training!')
-            self.load(os.path.join(args.data_config.save_pth, 'ldm-1300.pt'))
+            self.load(os.path.join(args.data_config.save_pth, 'ldm-last.pt'))
             print('Current Epochs :', self.step)
             print('Current iters :', self.current_iters)
         else:
@@ -132,9 +134,7 @@ class LDMTrainer(object):
             while self.step < self.epochs:
                 for idx, (x, _) in enumerate(self.data):
                     x = symmetrize_image_data(x)
-                    y = trans_F.resize(x, 256, antialias = True)
-                    y = y.clamp(-1., 1.)
-                    b, c, h, w = x.shape
+                    y = x
 
                     with self.accelerator.autocast():
                         ## Encode latent
@@ -194,8 +194,8 @@ class LDMTrainer(object):
 
 
     def eval(self):
-
-        print('Evaluation!')
+        print('Start Generation')
+        os.makedirs(self.args.data_config.save_gen, exist_ok=True)
         device = self.accelerator.device
         coords = convert_to_coord_format_2d(1, self.test_resolution, 
                                             self.test_resolution, 
@@ -206,16 +206,22 @@ class LDMTrainer(object):
                                             wend = (self.test_resolution-1)/self.test_resolution)
         
         
+        shape = [self.test_batch_size, self.channels, self.image_size, self.image_size]
+        iters = self.args.data_config.num_samples // self.test_batch_size
         self.ema.ema_model.eval()
-        with self.accelerator.autocast():
-            with torch.inference_mode():
-                z_test = self.ema.ema_model.sample(batch_size = self.test_batch_size) / self.vae_scale_factor
-                if isinstance(self.vaemodel, torch.nn.parallel.DistributedDataParallel):
-                    pe_test = self.vaemodel.module.decode(z_test)
-                else:
-                    pe_test = self.vaemodel.decode(z_test)
-                output_img = self.mlp(coords, hdbf=pe_test, si=1)
-        output_img = output_img.clamp(min = -1., max = 1.)
-        output_img = unsymmetrize_image_data(output_img)
 
-        vtils.save_image(output_img, os.path.join(self.results_pth, 'Test-{}.png'.format(self.step)), normalize = False, scale_each = False)
+        for idx in range(iters):
+            with self.accelerator.autocast():
+                with torch.inference_mode():
+                    z_test = self.ema.ema_model.sample(batch_size = self.test_batch_size) / self.vae_scale_factor
+                    if isinstance(self.vaemodel, torch.nn.parallel.DistributedDataParallel):
+                        pe_test = self.vaemodel.module.decode(z_test)
+                    else:
+                        pe_test = self.vaemodel.decode(z_test)
+                    output_img = self.mlp(coords, hdbf=pe_test, si=1)
+            output_img = output_img.clamp(min = -1., max = 1.)
+            fake = unsymmetrize_image_data(output_img)
+            for k in range(fake.shape[0]):
+                    fake_img = fake[k].data.cpu().numpy().transpose(1,2,0)
+                    fake_img = Image.fromarray((fake_img * 255).astype(np.uint8))
+                    fake_img.save(os.path.join(self.args.data.config.save_gen, 'gen-{}-{}.jpg'.format(idx, k)))

@@ -161,7 +161,7 @@ class AttnBlock(nn.Module):
         super().__init__()
         self.in_channels = in_channels
         self.num_heads = num_heads
-        self.head_channels = in_channels // num_heads
+        self.head_channel = in_channels // num_heads
         self.norm = Normalize(in_channels)
         self.q = torch.nn.Conv2d(in_channels,
                                  in_channels,
@@ -169,12 +169,12 @@ class AttnBlock(nn.Module):
                                  stride=1,
                                  padding=0)
         self.k = torch.nn.Conv2d(in_channels,
-                                 in_channels ,
+                                 in_channels,
                                  kernel_size=1,
                                  stride=1,
                                  padding=0)
         self.v = torch.nn.Conv2d(in_channels,
-                                 in_channels ,
+                                 in_channels,
                                  kernel_size=1,
                                  stride=1,
                                  padding=0)
@@ -195,18 +195,18 @@ class AttnBlock(nn.Module):
         # compute attention
         b,c,h,w = q.shape
         q = q.reshape(b,c,-1)
-        q = q.reshape(b*self.num_heads,self.head_channels, -1)
+        q = q.reshape(b*self.num_heads,self.head_channel, -1)
         q = q.permute(0,2,1)   # b,hw,c
 
         k = k.reshape(b,c,-1) # b,c,hw
-        k = k.reshape(b*self.num_heads, self.head_channels, -1)
+        k = k.reshape(b*self.num_heads, self.head_channel, -1)
         w_ = torch.bmm(q,k)     # b,hw,hw    w[b,i,j]=sum_c q[b,i,c]k[b,c,j]
         w_ = w_ * (int(c)**(-0.5))
         w_ = torch.nn.functional.softmax(w_, dim=2)
 
         # attend to values
         v = v.reshape(b,c,h*w)
-        v = v.reshape(b * self.num_heads, self.head_channels, -1)
+        v = v.reshape(b * self.num_heads, self.head_channel, -1)
         w_ = w_.permute(0,2,1)   # b,hw,hw (first hw of k, second of q)
         h_ = torch.bmm(v,w_)     # b, c,hw (hw of q) h_[b,c,j] = sum_i v[b,c,i] w_[b,i,j]
         h_ = h_.reshape(b,c,h,w)
@@ -220,7 +220,7 @@ class AttnBlock1d(nn.Module):
         super().__init__()
         self.in_channels = in_channels
         self.num_heads = num_heads
-        self.head_channels = in_channels // num_heads
+        self.head_channel = in_channels // num_heads
         self.norm = Normalize(in_channels)
         self.q = torch.nn.Conv1d(in_channels,
                                  in_channels,
@@ -228,16 +228,16 @@ class AttnBlock1d(nn.Module):
                                  stride=1,
                                  padding=0)
         self.k = torch.nn.Conv1d(in_channels,
-                                 in_channels ,
+                                 in_channels,
                                  kernel_size=1,
                                  stride=1,
                                  padding=0)
         self.v = torch.nn.Conv1d(in_channels,
-                                 in_channels ,
+                                 in_channels,
                                  kernel_size=1,
                                  stride=1,
                                  padding=0)
-        self.proj_out = torch.nn.Conv1d(in_channels ,
+        self.proj_out = torch.nn.Conv1d(in_channels,
                                         in_channels,
                                         kernel_size=1,
                                         stride=1,
@@ -253,15 +253,15 @@ class AttnBlock1d(nn.Module):
 
         # compute attention
         b,c,h = q.shape
-        q = q.reshape(b * self.num_heads, self.head_channels, -1)
+        q = q.reshape(b * self.num_heads, self.head_channel, -1)
         q = q.permute(0,2,1)   # b,hw,c
-        k = k.reshape(b * self.num_heads, self.head_channels, -1) # b,c,hw
+        k = k.reshape(b * self.num_heads, self.head_channel, -1) # b,c,hw
         w_ = torch.bmm(q,k)     # b,hw,hw    w[b,i,j]=sum_c q[b,i,c]k[b,c,j]
         w_ = w_ * (int(c)**(-0.5))
         w_ = torch.nn.functional.softmax(w_, dim=2)
 
         # attend to values
-        v = v.reshape(b * self.num_heads, self.head_channels, -1)
+        v = v.reshape(b * self.num_heads, self.head_channel, -1)
         w_ = w_.permute(0,2,1)   # b,hw,hw (first hw of k, second of q)
         h_ = torch.bmm(v,w_)     # b, c,hw (hw of q) h_[b,c,j] = sum_i v[b,c,i] w_[b,i,j]
         h_ = h_.reshape(b,c,h)
@@ -281,7 +281,7 @@ class MemoryEfficientAttnBlock(nn.Module):
         super().__init__()
         self.in_channels = in_channels
         self.heads = num_heads
-        self.head_channels = in_channels // num_heads
+        self.head_channel = in_channels // num_heads
         self.norm = Normalize(in_channels)
         self.q = torch.nn.Conv2d(in_channels,
                                  in_channels,
@@ -318,9 +318,9 @@ class MemoryEfficientAttnBlock(nn.Module):
 
         q, k, v = map(
             lambda t: t.unsqueeze(3)
-            .reshape(B, t.shape[1], self.heads, self.head_channels)
+            .reshape(B, t.shape[1], self.heads, self.head_channel)
             .permute(0, 2, 1, 3)
-            .reshape(B * self.heads, t.shape[1], self.head_channels)
+            .reshape(B * self.heads, t.shape[1], self.head_channel)
             .contiguous(),
             (q, k, v),
         )
@@ -328,11 +328,77 @@ class MemoryEfficientAttnBlock(nn.Module):
 
         out = (
             out.unsqueeze(0)
-            .reshape(B, self.heads, out.shape[1], self.head_channels)
+            .reshape(B, self.heads, out.shape[1], self.head_channel)
             .permute(0, 2, 1, 3)
-            .reshape(B, out.shape[1], self.heads* self.head_channels)
+            .reshape(B, out.shape[1], self.heads* self.head_channel)
         )
-        out = rearrange(out, 'b (h w) c -> b c h w', b=B, h=H, w=W, c=self.heads * self.head_channels)
+        out = rearrange(out, 'b (h w) c -> b c h w', b=B, h=H, w=W, c=self.heads * self.head_channel)
+        out = self.proj_out(out)
+        return x+out
+    
+class MemoryEfficientAttnBlock_expand(nn.Module):
+    """
+        Uses xformers efficient implementation,
+        see https://github.com/MatthieuTPHR/diffusers/blob/d80b531ff8060ec1ea982b65a1b8df70f73aa67c/src/diffusers/models/attention.py#L223
+        Note: this is a single-head self-attention operation
+    """
+    #
+    def __init__(self, in_channels, num_heads=4):
+        super().__init__()
+        self.in_channels = in_channels
+        self.heads = num_heads
+        self.head_channel = in_channels
+        self.norm = Normalize(in_channels)
+        self.q = torch.nn.Conv2d(in_channels,
+                                 in_channels*num_heads,
+                                 kernel_size=1,
+                                 stride=1,
+                                 padding=0)
+        self.k = torch.nn.Conv2d(in_channels,
+                                 in_channels*num_heads,
+                                 kernel_size=1,
+                                 stride=1,
+                                 padding=0)
+        self.v = torch.nn.Conv2d(in_channels,
+                                 in_channels*num_heads,
+                                 kernel_size=1,
+                                 stride=1,
+                                 padding=0)
+        self.proj_out = torch.nn.Conv2d(in_channels*num_heads,
+                                        in_channels,
+                                        kernel_size=1,
+                                        stride=1,
+                                        padding=0)
+        self.attention_op: Optional[Any] = None
+
+    def forward(self, x):
+        h_ = x
+        h_ = self.norm(h_)
+        q = self.q(h_)
+        k = self.k(h_)
+        v = self.v(h_)
+
+        # compute attention
+        B, _, H, W = q.shape
+        q, k, v = map(lambda x: rearrange(x, 'b c h w -> b (h w) c'), (q, k, v))
+
+        q, k, v = map(
+            lambda t: t.unsqueeze(3)
+            .reshape(B, t.shape[1], self.heads, self.head_channel)
+            .permute(0, 2, 1, 3)
+            .reshape(B * self.heads, t.shape[1], self.head_channel)
+            .contiguous(),
+            (q, k, v),
+        )
+        out = xformers.ops.memory_efficient_attention(q, k, v, attn_bias=None, op=self.attention_op)
+
+        out = (
+            out.unsqueeze(0)
+            .reshape(B, self.heads, out.shape[1], self.head_channel)
+            .permute(0, 2, 1, 3)
+            .reshape(B, out.shape[1], self.heads* self.head_channel)
+        )
+        out = rearrange(out, 'b (h w) c -> b c h w', b=B, h=H, w=W, c=self.heads * self.head_channel)
         out = self.proj_out(out)
         return x+out
 
@@ -347,7 +413,7 @@ class MemoryEfficientAttnBlock1D(nn.Module):
         super().__init__()
         self.in_channels = in_channels
         self.heads = num_heads
-        self.head_channels = in_channels//num_heads
+        self.head_channel = in_channels // num_heads
         self.norm = Normalize(in_channels)
         self.q = torch.nn.Conv1d(in_channels,
                                  in_channels,
@@ -384,9 +450,9 @@ class MemoryEfficientAttnBlock1D(nn.Module):
 
         q, k, v = map(
             lambda t: t.unsqueeze(3)
-            .reshape(B, t.shape[1], self.heads, self.head_channels)
+            .reshape(B, t.shape[1], self.heads, self.head_channel)
             .permute(0, 2, 1, 3)
-            .reshape(B * self.heads, t.shape[1], self.head_channels)
+            .reshape(B * self.heads, t.shape[1], self.head_channel)
             .contiguous(),
             (q, k, v),
         )
@@ -394,9 +460,75 @@ class MemoryEfficientAttnBlock1D(nn.Module):
 
         out = (
             out.unsqueeze(0)
-            .reshape(B, self.heads, out.shape[1], self.head_channels)
+            .reshape(B, self.heads, out.shape[1], self.head_channel)
             .permute(0, 2, 1, 3)
-            .reshape(B, out.shape[1], self.heads* self.head_channels)
+            .reshape(B, out.shape[1], self.heads* self.head_channel)
+        )
+        out = rearrange(out, 'b h c -> b c h')
+        out = self.proj_out(out)
+        return x+out
+
+class MemoryEfficientAttnBlock1D_expand(nn.Module):
+    """
+        Uses xformers efficient implementation,
+        Originally from https://github.com/MatthieuTPHR/diffusers/blob/d80b531ff8060ec1ea982b65a1b8df70f73aa67c/src/diffusers/models/attention.py#L223
+        but modified to 1D case
+    """
+    #
+    def __init__(self, in_channels, num_heads=8):
+        super().__init__()
+        self.in_channels = in_channels
+        self.heads = num_heads
+        self.head_channel = in_channels
+        self.norm = Normalize(in_channels)
+        self.q = torch.nn.Conv1d(in_channels,
+                                 in_channels*num_heads,
+                                 kernel_size=1,
+                                 stride=1,
+                                 padding=0)
+        self.k = torch.nn.Conv1d(in_channels,
+                                 in_channels*num_heads,
+                                 kernel_size=1,
+                                 stride=1,
+                                 padding=0)
+        self.v = torch.nn.Conv1d(in_channels,
+                                 in_channels*num_heads,
+                                 kernel_size=1,
+                                 stride=1,
+                                 padding=0)
+        self.proj_out = torch.nn.Conv1d(in_channels*num_heads,
+                                        in_channels,
+                                        kernel_size=1,
+                                        stride=1,
+                                        padding=0)
+        self.attention_op: Optional[Any] = None
+
+    def forward(self, x):
+        h_ = x
+        h_ = self.norm(h_)
+        q = self.q(h_)
+        k = self.k(h_)
+        v = self.v(h_)
+
+        # compute attention
+        B, _, _  = q.shape
+        q, k, v = map(lambda x: rearrange(x, 'b c h -> b h c'), (q, k, v))
+
+        q, k, v = map(
+            lambda t: t.unsqueeze(3)
+            .reshape(B, t.shape[1], self.heads, self.head_channel)
+            .permute(0, 2, 1, 3)
+            .reshape(B * self.heads, t.shape[1], self.head_channel)
+            .contiguous(),
+            (q, k, v),
+        )
+        out = xformers.ops.memory_efficient_attention(q, k, v, attn_bias=None, op=self.attention_op)
+
+        out = (
+            out.unsqueeze(0)
+            .reshape(B, self.heads, out.shape[1], self.head_channel)
+            .permute(0, 2, 1, 3)
+            .reshape(B, out.shape[1], self.heads* self.head_channel)
         )
         out = rearrange(out, 'b h c -> b c h')
         out = self.proj_out(out)
@@ -439,7 +571,13 @@ def make_attn(in_channels, attn_type="vanilla", attn_kwargs=None):
             print(f"building MemoryEfficientAttnBlock with {in_channels} in_channels...")
             return MemoryEfficientAttnBlock(in_channels, num_heads=16)
         else:
-            return AttnBlock(in_channels, num_heads=4)
+            return AttnBlock(in_channels, num_heads=16)
+    elif attn_type =='vanilla-multihead-expand':
+        if XFORMERS_IS_AVAILBLE:
+            print(f"building MemoryEfficientAttnBlock with {in_channels} in_channels...")
+            return MemoryEfficientAttnBlock_expand(in_channels, num_heads=16)
+        else:
+            raise ValueError('Invalid without xformer packages')
     elif attn_type == "vanilla-1d":
         if XFORMERS_IS_AVAILBLE:
             print(f"building MemoryEfficientAttnBlock with {in_channels} in_channels...")
@@ -451,7 +589,13 @@ def make_attn(in_channels, attn_type="vanilla", attn_kwargs=None):
             print(f"building MemoryEfficientAttnBlock with {in_channels} in_channels...")
             return MemoryEfficientAttnBlock1D(in_channels, num_heads=16)
         else:
-            return AttnBlock1d(in_channels, num_heads=8)
+            return AttnBlock1d(in_channels, num_heads=16)
+    elif attn_type == "vanilla-1d-multihead-expand":
+        if XFORMERS_IS_AVAILBLE:
+            print(f"building MemoryEfficientAttnBlock with {in_channels} in_channels...")
+            return MemoryEfficientAttnBlock1D_expand(in_channels, num_heads=4)
+        else:
+            raise ValueError('Invalid without xformer packages')
     elif type == "memory-efficient-cross-attn":
         attn_kwargs["query_dim"] = in_channels
         return MemoryEfficientCrossAttentionWrapper(**attn_kwargs)

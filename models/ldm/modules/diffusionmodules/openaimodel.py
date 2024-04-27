@@ -825,9 +825,6 @@ class UNetModel_Triplane(nn.Module):
 
     def __init__(
         self,
-        size1,
-        size2,
-        size3,
         in_channels,
         model_channels,
         out_channels,
@@ -852,6 +849,9 @@ class UNetModel_Triplane(nn.Module):
         n_embed=None,                     # custom support for prediction of discrete ids into codebook of first stage vq model
         legacy=True,
         attn_type="vanilla-1d-multihead",
+        size1=64,
+        size2=64,
+        size3=16,
         **ignorekwargs
     ):
         super().__init__()
@@ -1142,20 +1142,20 @@ class UNetModel_Triplane(nn.Module):
         #    h = th.cat([h, self.zeros.repeat(h.size(0), 1, 1)], dim=1)
 
         h_xy = h[:, :, 0:self.size1*self.size2].view(h.size(0), h.size(1), self.size1, self.size2)
-        h_xt = h[:, :, self.size1*self.size2:self.size1*(self.size2+self.size3)].view(h.size(0), h.size(1), self.size3, self.size2)
-        h_yt = h[:, :, self.size1*(self.size2+self.size3):self.size1*(self.size2+self.size3+self.size3)].view(h.size(0), h.size(1), self.size3, self.size2)
+        h_xt = h[:, :, self.size1*self.size2:self.size1*(self.size2+self.size3)].view(h.size(0), h.size(1), self.size3, self.size1)
+        h_yt = h[:, :, self.size1*(self.size2+self.size3):self.size1*(self.size2+self.size3)+self.size2*self.size3].view(h.size(0), h.size(1), self.size3, self.size2)
 
         for module, input_attn in zip(self.input_blocks, self.input_attns):
             h_xy = module(h_xy, emb, context)
-            h_yt = module(h_yt, emb, context)
             h_xt = module(h_xt, emb, context)
+            h_yt = module(h_yt, emb, context)
 
             res = h_xy.size(-2)
             t   = h_xt.size(-2)
 
             h_xy = h_xy.view(h_xy.size(0), h_xy.size(1), -1)
-            h_yt = h_yt.view(h_yt.size(0), h_yt.size(1), -1)
             h_xt = h_xt.view(h_xt.size(0), h_xt.size(1), -1)
+            h_yt = h_yt.view(h_yt.size(0), h_yt.size(1), -1)
 
             h = th.cat([h_xy, h_xt, h_yt], dim=-1)
             h = input_attn(h)
@@ -1165,19 +1165,19 @@ class UNetModel_Triplane(nn.Module):
             h_yt = h[:, :, res*(res+t):res*(res+t+t)].view(h.size(0), h.size(1), t, res)
 
             h_xys.append(h_xy)
-            h_yts.append(h_yt)
             h_xts.append(h_xt)
+            h_yts.append(h_yt)
 
         h_xy = self.middle_block(h_xy, emb, context)
-        h_yt = self.middle_block(h_yt, emb, context)
         h_xt = self.middle_block(h_xt, emb, context)
+        h_yt = self.middle_block(h_yt, emb, context)
 
         res = h_xy.size(-2)
         t   = h_xt.size(-2)
 
         h_xy = h_xy.view(h_xy.size(0), h_xy.size(1), -1)
-        h_yt = h_yt.view(h_yt.size(0), h_yt.size(1), -1)
         h_xt = h_xt.view(h_xt.size(0), h_xt.size(1), -1)
+        h_yt = h_yt.view(h_yt.size(0), h_yt.size(1), -1)
 
         h = th.cat([h_xy, h_xt, h_yt], dim=-1)
         h = self.mid_attn(h)
@@ -1189,17 +1189,17 @@ class UNetModel_Triplane(nn.Module):
         for module, output_attn in zip(self.output_blocks, self.output_attns):
             h_xy = th.cat([h_xy, h_xys.pop()], dim=1)
             h_xy = module(h_xy, emb, context)
-            h_yt = th.cat([h_yt, h_yts.pop()], dim=1)
-            h_yt = module(h_yt, emb, context)
             h_xt = th.cat([h_xt, h_xts.pop()], dim=1)
             h_xt = module(h_xt, emb, context)
+            h_yt = th.cat([h_yt, h_yts.pop()], dim=1)
+            h_yt = module(h_yt, emb, context)
 
             res = h_xy.size(-2)
             t   = h_xt.size(-2)
 
             h_xy = h_xy.view(h_xy.size(0), h_xy.size(1), -1)
-            h_yt = h_yt.view(h_yt.size(0), h_yt.size(1), -1)
             h_xt = h_xt.view(h_xt.size(0), h_xt.size(1), -1)
+            h_yt = h_yt.view(h_yt.size(0), h_yt.size(1), -1)
 
             h = th.cat([h_xy, h_xt, h_yt], dim=-1)
             h = output_attn(h)
@@ -1209,13 +1209,13 @@ class UNetModel_Triplane(nn.Module):
             h_yt = h[:, :, res*(res+t):res*(res+t+t)].view(h.size(0), h.size(1), t, res)
 
         h_xy = self.out(h_xy)
-        h_yt = self.out(h_yt)
         h_xt = self.out(h_xt)
+        h_yt = self.out(h_yt)
         
         # Concatenate spatialwise
         h_xy = h_xy.view(h_xy.size(0), h_xy.size(1), -1)
-        h_yt = h_yt.view(h_yt.size(0), h_yt.size(1), -1)
         h_xt = h_xt.view(h_xt.size(0), h_xt.size(1), -1)
+        h_yt = h_yt.view(h_yt.size(0), h_yt.size(1), -1)
 
         h = th.cat([h_xy, h_xt, h_yt], dim=-1)
         return h

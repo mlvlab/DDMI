@@ -96,7 +96,7 @@ class LPIPSWithDiscriminator3D(nn.Module):
         reconstructions_2d = torch.gather(reconstructions, 2, frame_idx_selected).squeeze(2)
 
         if optimizer_idx:
-            disc_factor = 1.
+            disc_factor = 500
             logits_real_2d, pred_real_2d = self.discriminator_2d(inputs_2d)            
             logits_real_3d, pred_real_3d = self.discriminator_3d(inputs.contiguous())            
             logits_fake_2d, pred_fake_2d = self.discriminator_2d(reconstructions_2d)            
@@ -153,7 +153,7 @@ class LPIPSWithDiscriminator2D(nn.Module):
         if cond is not None:
             condition = torch.ones((b, 1, h, w), device=inputs.device) * cond
         if optimizer_idx:
-            disc_factor = 1.
+            disc_factor = 50
             if cond is None:
                 logits_real_2d, pred_real_2d = self.discriminator_2d(inputs)            
                 logits_fake_2d, pred_fake_2d = self.discriminator_2d(reconstructions)

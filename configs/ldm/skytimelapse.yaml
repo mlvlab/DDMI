@@ -1,0 +1,83 @@
+model:
+  DiT: False # Currently, we do not support diffusion transformer model
+  resume: False
+  use_fp16: True
+  amp: True
+  lr: 1e-4
+  embed_dim: 64
+  params:
+    lossconfig:
+      epochs: 1500
+      save_and_sample_every: 25
+      ema_decay: 0.9999
+      ema_update_every: 1
+      gradient_accumulate_every: 1
+
+    unetconfig:
+      size1: 64
+      size2: 64
+      size3: 16
+      in_channels: 64
+      model_channels: 256
+      out_channels: 64
+      attention_resolutions:
+      - 8
+      - 4
+      - 2
+      num_res_blocks: 2
+      channel_mult:
+      - 1
+      - 2
+      - 3
+      - 4
+      num_head_channels: 32
+      use_checkpoint: False
+      use_fp16: False
+
+    ddconfig:
+      double_z: True
+      timesformer_channels: 384
+      splits: 1
+      patch_size: 8
+      resolution: 256
+      z_channels: 64
+      in_channels: 3
+      out_ch: 64
+      ch: 64
+      ch_mult:
+      - 1
+      - 2
+      - 4
+      - 8
+      num_res_blocks: 2
+      attn_resolutions: []
+      hdbf_resolutions: [128, 64]
+      inter_attn_resolutions: [32, 64, 128, 256]
+      dropout: 0.0
+      attn_type: vanilla-multihead
+
+    mlpconfig:
+      in_ch: 2
+      out_ch: 3
+      ch: 256
+      latent_dim: 64
+    
+    ddpmconfig:
+      timesteps: 1000
+      image_size: 64
+      channels: 64
+      clip_denoised: False
+      mixed_prediction: True
+      mixed_init: -6
+      sampling_timesteps: 200
+      ddim_sampling_eta: 0.
+
+data:
+  domain: video
+  mode: train
+  dataset: SKY
+  data_dir: ./data_path/
+  save_pth: ./save_path/
+  batch_size: 2
+  test_batch_size: 8
+  frames: 16

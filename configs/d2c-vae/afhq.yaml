@@ -1,29 +1,29 @@
 model:
-  resume: True
+  resume: False
   use_fp16: True
   amp: True
-  lr: 5e-5
+  lr: 1e-4
   embed_dim: 64
   params:
     lossconfig:
       multiscale: True
-      adversarial: True
-      disc_weight: 1.
-      epochs: 1300
+      adversarial: False
+      disc_weight: -1
+      epochs: 200
       warmup_epochs: 5
-      kl_anneal: False
-      kl_max_coeff: 0.001
+      kl_anneal: True
+      kl_max_coeff: 0.1
       kl_const_coeff: 0.0001
       kl_const_portion: 0.0001
-      kl_anneal_portion: 0.9
+      kl_anneal_portion: 0.7
       sn_reg: True
       sn_reg_weight_decay: 1e-1
-      sn_reg_weight_decay_anneal: False
+      sn_reg_weight_decay_anneal: True
       sn_reg_weight_decay_init: 5
-      lr_scheduler: False
-      save_and_sample_every: 20
+      lr_scheduler: True
+      save_and_sample_every: 10
       gradient_accumulate_every: 5
-         
+        
     ddconfig:
       double_z: True
       z_channels: 128
@@ -34,7 +34,7 @@ model:
       ch_mult:
       - 1
       - 2
-      - 4 
+      - 4
       num_res_blocks: 2
       attn_resolutions: []
       hdbf_resolutions: [128, 64]
@@ -53,7 +53,7 @@ data:
   mode: train
   data_dir: ./train_data_path/
   test_data_dir: ./test_data_path/
-  save_pth: ./results/d2c_vae/
+  save_pth: ./save_path/
   batch_size: 4
   test_batch_size: 16
   test_resolution: 256

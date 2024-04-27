@@ -111,7 +111,7 @@ class DDPM(nn.Module):
                  **ignorekwargs
                  ):
         super().__init__()
-        assert parameterization in ["eps", "x0"], 'currently only supporting "eps" and "x0"'
+        assert parameterization in ["eps", "x0", 'v'], 'currently only supporting "eps" and "x0"'
         self.parameterization = parameterization
         print(f"{self.__class__.__name__}: Running in {self.parameterization}-prediction mode")
         self.cond_stage_model = None
@@ -150,13 +150,13 @@ class DDPM(nn.Module):
         self.mixed_prediction = mixed_prediction
         self.domain = domain
         if self.mixed_prediction:
-            assert parameterization == 'eps'
-            if self.domain == 'image':
+            #assert parameterization == 'eps' or 'v'
+            if self.domain != 'video':
                 init = mixed_init * torch.ones(size = [1, channels, 1, 1])
                 self.mixing_logit = nn.Parameter(init, requires_grad=True)
             else:
                 init = mixed_init * torch.ones(size = [1, channels, 1])
-                self.mixing_logit = nn.Parameter(init, requires_grad=False)
+                self.mixing_logit = nn.Parameter(init, requires_grad=True)
         else:
             self.mixing_logit = None
 
@@ -207,12 +207,18 @@ class DDPM(nn.Module):
                         2 * self.posterior_variance * to_torch(alphas) * (1 - self.alphas_cumprod))
         elif self.parameterization == "x0":
             lvlb_weights = 0.5 * np.sqrt(torch.Tensor(alphas_cumprod)) / (2. * 1 - torch.Tensor(alphas_cumprod))
+        elif self.parameterization == "v":
+            lvlb_weights = 0.5 * np.sqrt(torch.Tensor(alphas_cumprod)) / (2. * 1 - torch.Tensor(alphas_cumprod))
         else:
             raise NotImplementedError("mu not supported")
         # TODO how to choose this term
         lvlb_weights[0] = lvlb_weights[1]
         self.register_buffer('lvlb_weights', lvlb_weights, persistent=False)
         assert not torch.isnan(self.lvlb_weights).all()
+
+    def get_velocity(self, sample, noise, t):
+        velocity = extract_into_tensor(self.sqrt_alphas_cumprod, t, sample.shape) * noise - extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, sample.shape) * sample
+        return velocity
 
 
     def q_mean_variance(self, x_start, t):
@@ -249,13 +255,16 @@ class DDPM(nn.Module):
         return posterior_mean, posterior_variance, posterior_log_variance_clipped
 
     def p_mean_variance(self, x, cond, t, clip_denoised: bool):
-        model_out = self.model(x, t, cond)
+        model_out = self.model(x, t, cond, enable_mask=False)
         mixing_component = self.get_mixing_component(x, t)
         model_out = self.get_mixed_prediction(self.mixed_prediction, model_out, self.mixing_logit, mixing_component)
         if self.parameterization == "eps":
             x_recon = self.predict_start_from_noise(x, t=t, noise=model_out)
         elif self.parameterization == "x0":
-            x_recon = model_out
+            x_recon = self.predict_start_from_noise(x, t=t, noise=model_out)
+            #x_recon = model_out
+        elif self.parameterization == "v":
+            x_recon = self.predict_start_from_noise(x, t=t, noise=model_out)
         if clip_denoised:
             x_recon.clamp_(-1., 1.)
 
@@ -272,7 +281,7 @@ class DDPM(nn.Module):
         return model_mean + nonzero_mask * (0.5 * model_log_variance).exp() * noise
 
     @torch.no_grad()
-    def p_sample_loop(self, shape, cond=None, return_intermediates=False, noise=None):
+    def p_sample_loop(self, shape, cond=None, return_intermediates=False, noise=None, enable_mask=False):
         device = self.betas.device
         b = shape[0]
         if noise is None:
@@ -291,9 +300,9 @@ class DDPM(nn.Module):
         return img
     
 
-    def model_predictions(self, x, cond, t, x_self_cond = None, clip_x_start = False):
+    def model_predictions(self, x, cond, t, x_self_cond = None, clip_x_start = False, enable_mask=False):
         if cond == None:
-            uncond_model_out = self.model(x, t, cond, x_self_cond)
+            uncond_model_out = self.model(x, t, cond, x_self_cond, enable_mask=enable_mask)
             mixing_component = self.get_mixing_component(x, t)
             uncond_model_out = self.get_mixed_prediction(self.mixed_prediction, uncond_model_out, self.mixing_logit, mixing_component)
             model_output = uncond_model_out
@@ -301,28 +310,29 @@ class DDPM(nn.Module):
             x_in = torch.cat([x] * 2)
             t_in = torch.cat([t] * 2)
             c_in = torch.cat([None, cond])
-            uncond_out, cond_out = self.model(x_in, t_in, c_in, x_self_cond).chunk(2)
+            uncond_out, cond_out = self.model(x_in, t_in, c_in, x_self_cond, enable_mask=enable_mask).chunk(2)
             mixing_component = self.get_mixing_component(x, t)
             uncond_out = self.get_mixed_prediction(self.mixed_prediction, uncond_out, self.mixing_logit, mixing_component)
             cond_out = self.get_mixed_prediction(self.mixed_prediction, cond_out, self.mixing_logit, mixing_component)
             model_output = (1+self.w) * cond_out - self.w * uncond_out
         
-        if self.parameterization == 'eps':
+        if self.parameterization == 'eps' or 'v':
             pred_noise = model_output
             x_start = self.predict_start_from_noise(x, t, pred_noise)
             if clip_x_start:
                 x_start.clamp_(-1., 1.)
 
         elif self.parameterization == 'x0':
-            x_start = model_output
+            pred_noise = model_output
+            x_start = self.predict_start_from_noise(x, t, pred_noise)
             if clip_x_start:
                 x_start.clamp_(-1., 1.)
-            pred_noise = self.predict_noise_from_start(x, t, x_start)
+            #pred_noise = self.predict_noise_from_start(x, t, x_start)
 
         return ModelPrediction(pred_noise, x_start)
 
     @torch.no_grad()
-    def ddim_sample(self, shape, cond, clip_denoised = False, noise=None):
+    def ddim_sample(self, shape, cond, clip_denoised = False, noise=None, enable_mask=False):
         batch, device, total_timesteps, sampling_timesteps, eta = shape[0], self.betas.device, self.num_timesteps, self.sampling_timesteps, self.ddim_sampling_eta
 
         times = torch.linspace(-1, total_timesteps - 1, steps=sampling_timesteps + 1)   # [-1, 0, 1, 2, ..., T-1] when sampling_timesteps == total_timesteps
@@ -338,7 +348,7 @@ class DDPM(nn.Module):
         for time, time_next in tqdm(time_pairs, desc = 'sampling loop time step'):
             time_cond = torch.full((batch,), time, device=device, dtype=torch.long)
             self_cond = None
-            pred_noise, x_start, *_ = self.model_predictions(img, cond, time_cond, self_cond, clip_x_start = clip_denoised)
+            pred_noise, x_start, *_ = self.model_predictions(img, cond, time_cond, self_cond, clip_x_start = clip_denoised, enable_mask=enable_mask)
 
             if time_next < 0:
                 img = x_start
@@ -359,16 +369,16 @@ class DDPM(nn.Module):
         return img
 
     @torch.no_grad()
-    def sample(self, batch_size=16, cond=None, return_intermediates=False, noise=None):
+    def sample(self, shape, cond=None, return_intermediates=False, noise=None, enable_mask=False):
         image_size = self.image_size
         channels = self.channels
 
         ''' ddim sampling '''
         if self.is_ddim_sampling:
-            return self.ddim_sample((batch_size, channels, image_size, image_size), cond, noise=noise)
+            return self.ddim_sample(shape, cond, noise=noise, enable_mask=enable_mask)
         else:
-            return self.p_sample_loop((batch_size, channels, image_size, image_size), cond,
-                                  return_intermediates=return_intermediates, noise=noise)
+            return self.p_sample_loop(shape, cond,
+                                  return_intermediates=return_intermediates, noise=noise, enable_mask=enable_mask)
 
     def q_sample(self, x_start, t, noise=None):
         noise = default(noise, lambda: torch.randn_like(x_start))
@@ -389,6 +399,12 @@ class DDPM(nn.Module):
             raise NotImplementedError("unknown loss type '{loss_type}'")
 
         return loss
+    
+    def get_model_output(self, x, t, cond = None):
+        model_out = self.model(x, t, cond)
+        mixing_component = self.get_mixing_component(x, t)
+        model_out = self.get_mixed_prediction(self.mixed_prediction, model_out, self.mixing_logit, mixing_component)
+        return model_out
 
     def p_losses(self, x_start, cond, t, noise=None):
         noise = default(noise, lambda: torch.randn_like(x_start))
@@ -402,6 +418,10 @@ class DDPM(nn.Module):
             target = noise
         elif self.parameterization == "x0":
             target = x_start
+            model_out = self.predict_start_from_noise(x_noisy, t, model_out)
+        elif self.parameterization == 'v':
+            target = self.get_velocity(x_start, noise, t)
+            model_out = self.get_velocity(x_start, model_out, t)
         else:
             raise NotImplementedError(f"Paramterization {self.parameterization} not yet supported")
 
@@ -449,9 +469,24 @@ class DDPM(nn.Module):
     def get_mixed_prediction(self, mixed_prediction, param, mixing_logit, mixing_component):
         if mixed_prediction:
             assert mixing_component is not None
-            #if self.domain=='image':
+            #if self.domain=='image' or 'occupancy':
             coeff = torch.sigmoid(mixing_logit)
             param = (1 - coeff) * mixing_component + coeff * param
+            # else:
+            #     mixing_logit1, mixing_logit2, mixing_logit3 = mixing_logit
+            #     coeff1 = torch.sigmoid(mixing_logit1)
+            #     coeff2 = torch.sigmoid(mixing_logit2)
+            #     coeff3 = torch.sigmoid(mixing_logit3)
+            #     param1 = param[:,:, 0:16*16]
+            #     param2 = param[:,:, 16*16:16*16+16*16]
+            #     param3 = param[:,:, 16*16+16*16:]
+            #     mixing_component1 = mixing_component[:,:, 0:16*16]
+            #     mixing_component2 = mixing_component[:,:, 16*16:16*16+16*16]
+            #     mixing_component3 = mixing_component[:,:, 16*16+16*16:]
+            #     a1 = (1-coeff1) * mixing_component1 + coeff1 * param1
+            #     a2 = (1-coeff2) * mixing_component2 + coeff2 * param2
+            #     a3 = (1-coeff3) * mixing_component3 + coeff3 * param3
+            #     param = torch.cat([a1,a2,a3], dim=-1)
         return param
 
     def get_mixing_component(self, noisy, t):

@@ -1,0 +1,56 @@
+method: conv_onet
+data:
+  input_type: pointcloud
+  classes: ["cars"]
+  path: ./data_path/
+  pointcloud_n: 3000
+  pointcloud_noise: 0.005
+  points_subsample: 2048
+  points_file: points.npz
+  points_iou_file: points.npz
+  voxels_file: null
+  text2shape: false # add Text2shape
+  text2shape_path: None
+  dim: 6
+model:
+  encoder: pointnet_local_pool
+  encoder_kwargs:
+    hidden_dim: 32
+    plane_type: ['xz', 'xy', 'yz']
+    plane_resolution: 128
+  decoder: simple_local
+  decoder_kwargs:
+    sample_mode: bilinear # bilinear / nearest
+    hidden_size: 32
+  c_dim: 32
+  TN:
+    use_bias: True
+    peturb: 1
+    N_importance: 0
+    N_samples: 96
+    N_rand: 1024
+    white_bkgd: True
+    use_viewdirs: True
+    raw_noise_std: 0
+    netchunk: 40000
+    chunk: 40000
+    relu_slope: 0.2
+    freeze_layers_learning: False
+    multires: 10
+    multires_views: 4
+    i_embed: 0
+    input_ch_embed: 63
+    input_ch_views_embed: 27
+training:
+  model_selection_metric: iou
+  model_selection_mode: maximize
+test:
+  threshold: 0.2
+  eval_mesh: true
+  eval_pointcloud: false
+  model_file: model_best.pt
+generation:
+  vis_n_outputs: 2
+  refine: false
+  n_x: 128
+  n_z: 1
