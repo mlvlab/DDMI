@@ -19,9 +19,6 @@ We propose a latent diffusion model that generates hierarchically decomposed pos
   <img src="asset/main.png" width="800px" />
 </div>
 
-## Note
-Data preparation, training codes for occupancy, NeRF, and video, and checkpoints for the pre-trained models will be released soon after the code refactoring.
-
 ## Setup
 To install requirements, run:
 ```bash
@@ -72,7 +69,19 @@ Data
 ```
 
 ### 3D
+We have used [ShapeNet dataset v1](https://shapenet.org/) and dataloader following [Occupancy Networks](https://github.com/autonomousvision/occupancy_networks#preprocessed-data). You may change the location of the dataset by changing `data_dir` of config files in `configs/`.
 
+
+### NeRF
+We have used srn-cars dataset following [pixel-NeRF](https://github.com/arielbenitah/pixel-nerf) or you may download the dataset from [here](https://ujchmura-my.sharepoint.com/personal/przemyslaw_spurek_uj_edu_pl/_layouts/15/onedrive.aspx?id=%2Fpersonal%2Fprzemyslaw%5Fspurek%5Fuj%5Fedu%5Fpl%2FDocuments%2Fds%2Ezip&parent=%2Fpersonal%2Fprzemyslaw%5Fspurek%5Fuj%5Fedu%5Fpl%2FDocuments&ga=1). You may change the location of the dataset by changing `data_dir` of config files in `configs/`. Dataset should be structured as below:
+```
+Data
+|-- cars
+    |-- sampled
+        |-- car00000.npz
+        |-- car00001.npz
+        |-- ...
+```
 
 ## Training
 To train other signal domains, you may change the `domain` of config files in `configs/`, e.g., `image`, `occupancy`, `nerf`, or `video`. Currently, different network is trained for different signal domain. By default, the model's checkpoint will be stored in `./results`. If training D2C-VAE in the first stage is unstable, i.e., NAN value, try increasing `sn_reg_weight_decay` or `sn_reg_weight_decay_init` of config files to increase the weight of spectral regularization.
