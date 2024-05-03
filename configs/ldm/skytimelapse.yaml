@@ -1,6 +1,7 @@
 model:
   DiT: False
-  resume: True
+  pretrained: False
+  resume: False
   use_fp16: True
   amp: True
   lr: 1e-4
@@ -70,15 +71,15 @@ model:
       mixed_prediction: True
       mixed_init: -6
       sampling_timesteps: 200
-      ddim_sampling_eta: 0.
+      ddim_sampling_eta: 0
       domain: video
 
 data:
   domain: video
-  mode: gen
+  mode: train
   dataset: SKY
-  data_dir: /hub_data2/dogyun/SKY/
-  save_pth: /hub_data3/dogyun/ICLR/2step/sky_ldm
+  data_dir: ./train_data_path/
+  ssave_pth: ./save_path/
   batch_size: 2
   test_batch_size: 1
   test_resolution: 256

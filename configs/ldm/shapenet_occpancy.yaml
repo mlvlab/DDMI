@@ -74,7 +74,7 @@ model:
 data:
   domain: occupancy
   mode: train
-  save_pth: /hub_data3/dogyun/ICLR/2step/shapenet_all_3D/
+  save_pth: ./save_path/
   batch_size: 10
   test_batch_size: 10
   conv_config: convocc/configs/pointcloud/shapenet_3plane.yaml

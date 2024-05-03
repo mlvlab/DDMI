@@ -1,6 +1,7 @@
 model:
-  DiT: False # Currently, we do not support diffusion transformer model
-  resume: True
+  DiT: False
+  pretrained: False
+  resume: False
   use_fp16: True
   amp: True
   lr: 1e-4
@@ -10,7 +11,7 @@ model:
       epochs: 1500
       save_and_sample_every: 25
       ema_decay: 0.9999
-      ema_update_every: 1
+      ema_update_every: 10
       gradient_accumulate_every: 5
 
     unetconfig:
@@ -26,9 +27,9 @@ model:
       channel_mult:
       - 1
       - 2
-      - 3
       - 4
-      num_head_channels: 64
+      - 8
+      num_head_channels: 32
       use_checkpoint: False
       use_fp16: False
 
@@ -63,11 +64,11 @@ model:
       mixed_prediction: True
       mixed_init: -6
       sampling_timesteps: 1000
-      ddim_sampling_eta: 1.
+      ddim_sampling_eta: 1
 
 data:
   domain: image
-  mode: eval
+  mode: train
   data_dir: ./train_data_path/
   test_data_dir: ./test_data_path/
   save_pth: ./save_path/

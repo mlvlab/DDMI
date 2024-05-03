@@ -326,7 +326,7 @@ def test_fvd_ddpm(ema, vaemodel, mlp, coords, loader, accelerator, shape, path=N
                 else:
                     pe_test = vaemodel.decode(z_test)
                 fake = mlp(coords, pe_test)
-            fake = rearrange((fake.clamp(-1,1) + 1) * 127.5, 'b c t h w -> b t h w c', b=real.size(0))
+            fake = rearrange((fake.clamp(-1,1) + 1) * 127.5, 'b c t h w -> b t h w c', b=shape[0])
             fake = fake.type(torch.uint8)
             fake_embeddings.append(get_fvd_logits(fake.cpu().numpy(), i3d=i3d, device=device))
     real_embeddings = torch.cat(real_embeddings)

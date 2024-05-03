@@ -1,16 +1,16 @@
 model:
   DiT: False
-  resume: True
+  resume: False
   use_fp16: True
   amp: True
-  lr: 1e-4
+  lr: 5e-5
   embed_dim: 64
   params:
     lossconfig:
       adversarial: False
-      epochs: 400
+      epochs: 4000
       warmup_epochs: 5
-      kl_anneal: True
+      kl_anneal: False
       kl_max_coeff: 0.05
       kl_const_coeff: 0.0001
       kl_const_portion: 0.0001
@@ -18,16 +18,16 @@ model:
       disc_weight: 0.5
       sn_reg: True
       sn_reg_weight_decay: 1e-1
-      sn_reg_weight_decay_anneal: True
+      sn_reg_weight_decay_anneal: False
       sn_reg_weight_decay_init: 5
       lr_scheduler: True
-      save_and_sample_every: 5
+      save_and_sample_every: 25
       gradient_accumulate_every: 10
 
     ddconfig:
       double_z: True
       z_channels: 128
-      resolution: 128 # need to match the resolution after pointnet encoder
+      resolution: 64 # need to match the resolution after pointnet encoder
       in_channels: 32 # need to match feature dimension after pointnet encoder
       out_ch: 32
       ch: 64
@@ -38,15 +38,15 @@ model:
       num_res_blocks: 2
       attn_resolutions: []
       hdbf_resolutions: []
-      inter_attn_resolutions: [128, 64, 32]
+      inter_attn_resolutions: [64, 32, 16]
       dropout: 0.0
       attn_type: vanilla
 
     mlpconfig:
-      D: 4
-      W: 64
+      D: 6
+      W: 256
       in_channels_xyz: 159
-      skips: [2]
+      skips: [2,4]
 
 data:
   domain: nerf

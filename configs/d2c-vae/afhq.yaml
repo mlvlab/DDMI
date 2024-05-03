@@ -9,13 +9,13 @@ model:
       multiscale: True
       adversarial: False
       disc_weight: -1
-      epochs: 200
+      epochs: 400
       warmup_epochs: 5
       kl_anneal: True
-      kl_max_coeff: 0.1
+      kl_max_coeff: 0.5
       kl_const_coeff: 0.0001
       kl_const_portion: 0.0001
-      kl_anneal_portion: 0.7
+      kl_anneal_portion: 0.9
       sn_reg: True
       sn_reg_weight_decay: 1e-1
       sn_reg_weight_decay_anneal: True
@@ -47,13 +47,12 @@ model:
       ch: 256
       latent_dim: 64
 
-
 data:
   domain: image
   mode: train
-  data_dir: ./train_data_path/
-  test_data_dir: ./test_data_path/
-  save_pth: ./save_path/
+  data_dir: ./train_data_path/       #replace directory with the directory data folder located at
+  test_data_dir: ./test_data_path/   #replace directory with the directory data folder located at
+  save_pth: ./save_path/             #where to save checkpoints
   batch_size: 4
   test_batch_size: 16
   test_resolution: 256

@@ -905,9 +905,10 @@ class Autoencoder3D(nn.Module):
         return posterior_xy, posterior_yz, posterior_xz
 
     def decode(self, x):
+        #print(self.embed_dim)
         xy = x[:, :self.embed_dim]
-        yz = x[:, self.embed_dim:self.embed_dim*2]
-        xz = x[:, 2*self.embed_dim:]
+        xz = x[:, self.embed_dim:self.embed_dim*2]
+        yz = x[:, 2*self.embed_dim:]
         xy = self.post_quant_conv_xy(xy)
         yz = self.post_quant_conv_yz(yz)
         xz = self.post_quant_conv_xz(xz)
