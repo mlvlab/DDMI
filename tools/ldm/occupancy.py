@@ -106,16 +106,16 @@ class LDMTrainer(object):
         if not self.accelerator.is_local_main_process:
             return
         data = {
-                #'args' : self.args,
-                #'step' : self.step,
-                #'current_iters' : self.current_iters,
+                'args' : self.args,
+                'step' : self.step,
+                'current_iters' : self.current_iters,
                 'pointnet' : self.accelerator.get_state_dict(self.pointnet),
                 'vaemodel' : self.accelerator.get_state_dict(self.vaemodel),
                 'mlp' : self.accelerator.get_state_dict(self.mlp),
                 'diffusion' : self.accelerator.get_state_dict(self.diffusion_process),
-                #'dae_opt' : self.dae_opt.state_dict(),
+                'dae_opt' : self.dae_opt.state_dict(),
                 'ema' : self.ema.state_dict(),
-                #'scaler' : self.accelerator.scaler.state_dict() if exists(self.accelerator.scaler) else None,
+                'scaler' : self.accelerator.scaler.state_dict() if exists(self.accelerator.scaler) else None,
                 }
         torch.save(data, os.path.join(self.results_folder, 'ldm-{}.pt'.format(step)))
         torch.save(data, os.path.join(self.results_folder, 'ldm-last.pt'.format(step)))
@@ -227,4 +227,3 @@ class LDMTrainer(object):
             mesh, mesh2 = self.mesh_gen.generate_mesh_fromdiffusion(z_test, self.vaemodel, self.mlp, self.accelerator.device)
         mesh.export(os.path.join(self.results_pth, 'generation.obj'))
         print('Finished generating shapes!')
-        self.save()

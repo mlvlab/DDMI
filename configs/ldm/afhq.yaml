@@ -1,6 +1,6 @@
 model:
   DiT: False
-  pretrained: False
+  pretrained: True
   resume: False
   use_fp16: True
   amp: True
@@ -68,7 +68,7 @@ model:
 
 data:
   domain: image
-  mode: train
+  mode: gen
   data_dir: ./train_data_path/
   test_data_dir: ./test_data_path/
   save_pth: ./save_path/

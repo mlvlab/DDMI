@@ -73,7 +73,7 @@ model:
 
 data:
   domain: occupancy
-  mode: train
+  mode: gen
   save_pth: ./save_path/
   batch_size: 10
   test_batch_size: 10

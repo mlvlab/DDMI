@@ -9,8 +9,6 @@ import torchvision.transforms.functional as trans_F
 from timeit import default_timer as timer
 from accelerate import Accelerator
 from ema_pytorch import EMA
-
-from models.ddmi import DDMI
 from utils.general_utils import symmetrize_image_data, unsymmetrize_image_data, exists, convert_to_coord_format_2d, get_scale_injection
 from evals.eval import test_fid_ddpm, test_fid_ddpm_N
 
@@ -87,12 +85,6 @@ class LDMTrainer(object):
             self.vaemodel.load_state_dict(data_pth['model'])
             self.mlp.load_state_dict(data_pth['mlp'])
 
-        #config = {'ldm': self.ema.ema_model, 'vae': self.vaemodel, 'mlp': self.mlp}
-        #ddmi = DDMI(self.ema.ema_model, self.vaemodel, self.mlp)
-        #ddmi.push_to_hub('ddmi_afhqcat_ema')
-        #ddmi.from_pretrained('DogyunPark/ddmi_afhqcat_ema')
-        #import pdb; pdb.set_trace()
-        # Wrap with accelerator
         self.data, self.vaemodel, self.mlp, self.diffusion_process, self.dae_opt = self.accelerator.prepare(self.data, self.vaemodel, self.mlp, self.diffusion_process, self.dae_opt)
 
         ## Save directory
@@ -247,4 +239,3 @@ class LDMTrainer(object):
         output_img = unsymmetrize_image_data(output_img)
         vtils.save_image(output_img, os.path.join(self.results_pth, 'generation.jpg'), normalize = False, scale_each = False)
         print('Finished generating images!')
-        self.save()
