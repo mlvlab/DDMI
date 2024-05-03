@@ -99,7 +99,8 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --multi_gpu --num_processes=4 mai
 ```
 
 # Evaluation
-We have utilized several evaluation metrics for assessing generation quality: FID for image, MMD and COV for 3D shape, and FVD for video evaluation.
+In our paper, we have utilized several evaluation metrics for assessing generation quality: FID for image, MMD and COV for 3D shape, and FVD for video evaluation.
+You can change the total number sampling steps (NFE) by changing the `sampling_timesteps` in config file.
 ### Image
 To evaluate FID of trained 2D image model, run the following script by changing the `mode` of config files to `eval` from `train`:
 ```bash
