@@ -113,10 +113,18 @@ python main.py --exp ldm --configs configs/ldm/video.yaml
 ```
 
 ### 3D occupancy
-You first need to generate occupancy function and process it to make point clouds.
-First, run the following script by changing the `mode` of config files to `gen` from `train`.
+You first need to generate an occupancy function and process it to make point clouds.
+First, run the following script by changing the `mode` of config files to `eval` from `train`. The generated 3D shapes will be saved in the `eval` folder, located in the directory specified in config `save_pth`.
 ```bash
 python main.py --exp ldm --configs configs/ldm/occupancy.yaml
+```
+Then, run the following script to sample 2048 point clouds from the mesh.
+```bash
+python eval_3d/meshtopc.py --pth [location of mesh files] --save_pth [save location of point clouds]
+```
+Finally, run the following script to measure MMD and COV between ground truth point clouds and generated point clouds.
+```bash
+python eval_3d/compute_metrics_3d.py --gt_pth [location of ground truth point clouds] --save_pth [location of generated point clouds]
 ```
 
 # Generation
@@ -127,10 +135,10 @@ python main.py --exp ldm --configs configs/ldm/img.yaml
 For arbitrary-resolution 2D image generation with consistent content, you only have to change `test_resolution`  of config files with a fixed seed.
 
 
-## Acknowledgement
+# Acknowledgement
 This repo is built upon [ADM](https://github.com/openai/guided-diffusion), [latent-diffusion](https://github.com/CompVis/latent-diffusion), and [PVDM](https://github.com/sihyun-yu/PVDM).
 
-## Citation
+# Citation
 ```bibtex
 @article{park2024ddmi,
   title={DDMI: Domain-Agnostic Latent Diffusion Models for Synthesizing High-Quality Implicit Neural Representations},
