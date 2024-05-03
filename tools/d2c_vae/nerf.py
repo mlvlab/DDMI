@@ -17,6 +17,7 @@ from accelerate import Accelerator
 
 from utils.general_utils import exists, linear_kl_coeff
 from utils.sr_utils import SpectralNormCalculator
+from utils import nerf_helpers
 
 
 class D2CTrainer(object):
@@ -27,6 +28,9 @@ class D2CTrainer(object):
             vaemodel,
             mlp,
             mesh_gen,
+            embed_fn,
+            embeddirs_fn,
+            cfg,
             data,
             ):
         super().__init__()
@@ -46,10 +50,11 @@ class D2CTrainer(object):
         self.vaemodel = vaemodel
         self.mlp = mlp
         self.mesh_gen = mesh_gen
+        self.embed_fn = embed_fn
+        self.embeddirs_fn = embeddirs_fn
+        self.cfg = cfg
 
         ## loss config
-        if args.loss_config.adversarial:
-            raise NotImplementedError
         self.train_lr = args.lr
         self.warmup_epochs = args.loss_config.warmup_epochs
         self.epochs = args.loss_config.epochs
@@ -65,6 +70,7 @@ class D2CTrainer(object):
         self.sn_reg_weight_decay_init = args.loss_config.sn_reg_weight_decay_init
         self.sn_reg = args.loss_config.sn_reg
         self.gradient_accumulate_every = args.loss_config.gradient_accumulate_every
+        self.channels = args.embed_dim
         if args.loss_config.sn_reg:
             print('Spectral Normalization Regularization Activated!')
             self.sn_caculator = SpectralNormCalculator()
@@ -142,6 +148,7 @@ class D2CTrainer(object):
 
     def train(self):
         device = self.accelerator.device
+        render_kwargs = nerf_helpers.get_render_kwargs(self.cfg, self.mlp, self.embed_fn, self.embeddirs_fn)
 
         with tqdm(initial = self.step, total = self.epochs) as pbar:
             while self.step < self.epochs:
@@ -157,32 +164,56 @@ class D2CTrainer(object):
                 self.vaemodel.train()
                 self.mlp.train()
 
-                for idx, batch in enumerate(self.data):
-                    coords = batch['points']
-                    occ = batch['points.occ']
-                    inputs = batch.get('inputs', torch.empty(coords.size(0), 0)).to(device)
-                    
+                for idx, (entry, cat, obj_path) in enumerate(self.data):
+                    points = entry['data']
+                    points = points.to(device, dtype=torch.float32)
+                    gt_image = entry['images']
+                    batch = gt_image.shape[0]
+                    H = entry["images"][0].shape[1]
+                    W = entry["images"][0].shape[2]
+                    focal = .5 * W / np.tan(.5 * 0.6911112070083618) 
+                    K = np.array([
+                    [focal, 0, 0.5*W],
+                    [0, focal, 0.5*H],
+                    [0, 0, 1]
+                    ])
+                    pose_idx = np.random.choice(len(gt_image[0]), batch)
+                    pose = entry['cam_poses'][0][pose_idx, :3, :4][0].to(device)
+                    target = gt_image[:,pose_idx][0][0]                    
+                   
+                    rays_o, rays_d = nerf_helpers.get_rays(H, W, K, pose, device) 
+                    coords = torch.stack(torch.meshgrid(torch.linspace(0, H-1, H), torch.linspace(0, W-1, W)), -1)  # (H, W, 2)
+                    coords = torch.reshape(coords, [-1,2])
+                    select_inds = np.random.choice(coords.shape[0], size=5000, replace=False)
+                    select_coords = coords[select_inds].long()  # (N_rand, 2)
+                    rays_o = rays_o[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
+                    rays_d = rays_d[select_coords[:, 0], select_coords[:, 1]]  # (N_rand, 3)
+                    batch_rays = torch.stack([rays_o, rays_d], 0)
+                    target_sort = target[select_coords[:, 0], select_coords[:, 1]] # (N_rand, 3)
+
                     with self.accelerator.autocast():
                         ## pointclouds to grid planes using local point pooling network
-                        f_planes = self.pointnet(inputs)
+                        f_planes = self.pointnet(points)
+                        #z = torch.cat([f_planes['xy'], f_planes['yz'], f_planes['xz']], dim = 1)
                         if isinstance(self.vaemodel, torch.nn.parallel.DistributedDataParallel):
                             posterior_xy, posterior_yz, posterior_xz = self.vaemodel.module.encode([f_planes['xy'], f_planes['yz'], f_planes['xz']])
-                            xy, yz, xz = posterior_xy.sample(), posterior_yz.sample(), posterior_xz.sample()
-                            z = torch.cat([xy, yz, xz], dim = 1)
+                            z = torch.cat([posterior_xy.sample(), posterior_yz.sample(), posterior_xz.sample()], dim = 1)
                             pe_xy, pe_yz, pe_xz = self.vaemodel.module.decode(z)
-                            
                         else:
                             posterior_xy, posterior_yz, posterior_xz = self.vaemodel.encode([f_planes['xy'], f_planes['yz'], f_planes['xz']])
-                            xy, yz, xz = posterior_xy.sample(), posterior_yz.sample(), posterior_xz.sample()
-                            z = torch.cat([xy, yz, xz], dim = 1)
+                            z = torch.cat([posterior_xy.sample(), posterior_yz.sample(), posterior_xz.sample()], dim = 1)
                             pe_xy, pe_yz, pe_xz = self.vaemodel.decode(z)
 
-                        output = self.mlp(coords, (pe_xy, pe_yz, pe_xz))
-                        logits = output.logits
-
-                        ## Recon Loss
-                        loss_i = F.binary_cross_entropy_with_logits(logits, occ, reduction = 'none')
-                        recon_loss = loss_i.sum(-1).mean()
+                        fea = {}
+                        fea['xy'] = pe_xy[0]
+                        fea['yz'] = pe_yz[0]
+                        fea['xz'] = pe_xz[0]
+                        
+                        output = nerf_helpers.render(H, W, K, fea, None, 0, device, chunk=self.cfg['model']['TN']['netchunk'], rays=batch_rays.to(device), #c2w=pose,
+                                                                verbose=True, retraw=True, hw_idx=None,
+                                                                **render_kwargs)
+                        
+                        recon_loss = 20* torch.sum(torch.abs(output.contiguous() - target_sort.contiguous()))        
 
                         ## KL loss
                         kld_xy = posterior_xy.kl()
@@ -217,10 +248,22 @@ class D2CTrainer(object):
                         
                         self.accelerator.wait_for_everyone()
                 
+                    if self.current_iters % 500 == 0 and self.accelerator.is_main_process:
+                        with self.accelerator.autocast():
+                            with torch.inference_mode():
+                                output = nerf_helpers.render(H, W, K, fea, None, 0, device, chunk=4096, c2w=pose,
+                                                                            verbose=True, retraw=True, hw_idx=None,
+                                                                            **render_kwargs)
+                                output = output.unsqueeze(0).reshape(1, 200, 200, 3)
+                        gt_img = target.unsqueeze(0).permute(0, 3, 1, 2)
+                        output_img = output.permute(0, 3, 1, 2)
+                        output_img = output_img.clamp(0, 1)
+                        vtils.save_image(output_img, os.path.join(self.results_pth, '{}.png'.format(self.current_iters)), normalize=True, scale_each=True)
+                        vtils.save_image(gt_img, os.path.join(self.results_pth, 'gt-{}.png'.format(self.current_iters)), normalize=True, scale_each=True)
+                    
+                    self.accelerator.wait_for_everyone()
+
                 if self.step % self.save_and_sample_every == 0 and self.accelerator.is_main_process:
-                    #print(logits.shape)
-                    mesh, mesh2 = self.mesh_gen.generate_mesh_fromdiffusion((posterior_xy.sample()[0].unsqueeze(0), posterior_yz.sample()[0].unsqueeze(0), posterior_xz.sample()[0].unsqueeze(0)), self.vaemodel, self.mlp, self.accelerator.device)
-                    mesh.export(os.path.join(self.results_pth, '{}.obj'.format(self.step)))
                     self.save(step = self.step)
                 
                 self.accelerator.wait_for_everyone()
@@ -228,4 +271,4 @@ class D2CTrainer(object):
                 pbar.update(1)
 
     def eval(self):
-        pass
+        raise NotImplementedError

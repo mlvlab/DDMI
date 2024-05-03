@@ -243,7 +243,6 @@ class D2CTrainer(object):
                                 self.opt_d.zero_grad()
                         else:
                             assert self.opt_d is not None
-                            #self.accelerator.clip_grad_norm_(self.criterion.module.discriminator_2d.parameters(), self.max_grad_norm)
                             self.opt_d.step()
                             self.opt_d.zero_grad()
                             self.opt.zero_grad()
@@ -268,7 +267,6 @@ class D2CTrainer(object):
                 self.accelerator.wait_for_everyone()
                 self.step += 1
                 pbar.update(1)
-    
 
     def eval(self):
         device = self.accelerator.device
@@ -284,4 +282,4 @@ class D2CTrainer(object):
             rfid = test_rfid(self.model, self.mlp, coords, self.test_data, self.results_pth, device, save = True)
             print('rFID:', rfid)
         else:
-            pass
+            raise ValueError('Need Test dataset!')

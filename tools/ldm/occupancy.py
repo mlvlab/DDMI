@@ -76,6 +76,15 @@ class LDMTrainer(object):
             self.load(os.path.join(args.data_config.save_pth, 'ldm-last.pt'))
             print('Current Epochs :', self.step)
             print('Current iters :', self.current_iters)
+        elif args.pretrained:
+            print('Loading Pretrained Models!')
+            data_pth = torch.load(os.path.join(args.data_config.save_pth, 'ldm-last.pt'), map_location='cpu')
+            self.pointnet.load_state_dict(data_pth['pointnet'])
+            self.vaemodel.load_state_dict(data_pth['vaemodel'])
+            self.mlp.load_state_dict(data_pth['mlp'])
+            self.diffusion_process.load_state_dict(data_pth['diffusion'])
+            if self.accelerator.is_main_process:
+                self.ema.load_state_dict(data_pth['ema'])
         else:
             # Load from checkpoint
             print('Load VAE checkpoints!')
@@ -97,16 +106,16 @@ class LDMTrainer(object):
         if not self.accelerator.is_local_main_process:
             return
         data = {
-                'args' : self.args,
-                'step' : self.step,
-                'current_iters' : self.current_iters,
+                #'args' : self.args,
+                #'step' : self.step,
+                #'current_iters' : self.current_iters,
                 'pointnet' : self.accelerator.get_state_dict(self.pointnet),
                 'vaemodel' : self.accelerator.get_state_dict(self.vaemodel),
                 'mlp' : self.accelerator.get_state_dict(self.mlp),
                 'diffusion' : self.accelerator.get_state_dict(self.diffusion_process),
-                'dae_opt' : self.dae_opt.state_dict(),
+                #'dae_opt' : self.dae_opt.state_dict(),
                 'ema' : self.ema.state_dict(),
-                'scaler' : self.accelerator.scaler.state_dict() if exists(self.accelerator.scaler) else None,
+                #'scaler' : self.accelerator.scaler.state_dict() if exists(self.accelerator.scaler) else None,
                 }
         torch.save(data, os.path.join(self.results_folder, 'ldm-{}.pt'.format(step)))
         torch.save(data, os.path.join(self.results_folder, 'ldm-last.pt'.format(step)))
@@ -192,14 +201,30 @@ class LDMTrainer(object):
                 pbar.update(1)
 
 
+    @torch.no_grad()
     def eval(self):
-        pass
+        print('Generating 5K shapes for evaluation!')
+        shape = [self.test_batch_size, 3*self.channels, self.size1, self.size2]
+        total_generation_number = 5000
+        total_iters = total_generation_number // self.test_batch_size
+        self.results_eval = os.path.join(self.results_folder, 'eval')
+        os.makedirs(self.results_eval, exist_ok=True)
+
+        for i in range(total_iters):
+            print(i)
+            z_test = self.ema.ema_model.sample(shape=shape)
+            for j in range(z_test.shape[0]):
+                mesh, mesh2 = self.mesh_gen.generate_mesh_fromdiffusion(z_test[j].unsqueeze(0), self.vaemodel, self.mlp, self.accelerator.device)    
+                mesh.export(os.path.join(self.results_eval, '{}-{}.obj'.format(i,j)))
+        print('Finished generating shapes!')
     
     @torch.no_grad()
     def generate(self):
+        print('Generating shape!')
         shape = [1, 3*self.channels, self.size1, self.size2]
-        for i in range(self.test_batch_size):
-            with self.accelerator.autocast():
-                z_test = self.ema.ema_model.sample(shape=shape)
-                mesh, mesh2 = self.mesh_gen.generate_mesh_fromdiffusion(z_test, self.vaemodel, self.mlp, self.accelerator.device)
-            mesh.export(os.path.join(self.results_pth, 'test/{}.obj'.format(i)))
+        with self.accelerator.autocast():
+            z_test = self.ema.ema_model.sample(shape=shape)
+            mesh, mesh2 = self.mesh_gen.generate_mesh_fromdiffusion(z_test, self.vaemodel, self.mlp, self.accelerator.device)
+        mesh.export(os.path.join(self.results_pth, 'generation.obj'))
+        print('Finished generating shapes!')
+        self.save()

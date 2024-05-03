@@ -2,7 +2,7 @@ method: conv_onet
 data:
   input_type: pointcloud
   classes: null
-  path: /hub_data2/dogyun/data/ShapeNet
+  path: "location to shapenet dataset"
   pointcloud_n: 3000
   pointcloud_noise: 0.005
   points_subsample: 2048
@@ -14,9 +14,10 @@ data:
 model:
   encoder: pointnet_local_pool
   encoder_kwargs:
-    hidden_dim: 32
+    hidden_dim: 256
     plane_type: ['xz', 'xy', 'yz']
     plane_resolution: 64
+    n_blocks: 7
   decoder: simple_local
   decoder_kwargs:
     sample_mode: bilinear # bilinear / nearest

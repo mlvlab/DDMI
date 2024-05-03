@@ -23,7 +23,6 @@ def main(args):
         args.amp = config.model.amp
         args.domain = config.data.domain
         args.mode = config.data.mode
-        args.DiT = config.model.DiT
 
         first_stage_train(args)
 
@@ -39,6 +38,7 @@ def main(args):
         args.lr = config.model.lr
         args.resolution = config.model.params.ddconfig.resolution
         args.resume = config.model.resume
+        args.pretrained = config.model.pretrained
         args.amp = config.model.amp
         args.use_fp16 = config.model.use_fp16
         args.domain = config.data.domain

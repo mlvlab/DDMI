@@ -1,6 +1,7 @@
 model:
-  DiT: False # Currently, we do not support diffusion transformer model
-  resume: True
+  DiT: False
+  pretrained: True
+  resume: False
   use_fp16: True
   amp: True
   lr: 1e-4
@@ -10,7 +11,7 @@ model:
       epochs: 3000
       save_and_sample_every: 100
       ema_decay: 0.9999
-      ema_update_every: 1
+      ema_update_every: 5
       gradient_accumulate_every: 5
 
     unetconfig:
@@ -29,8 +30,8 @@ model:
       channel_mult:
       - 1
       - 2
-      - 3
       - 4
+      - 6
       num_head_channels: 32
       use_checkpoint: False
       use_fp16: False
