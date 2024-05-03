@@ -11,8 +11,7 @@ from accelerate import Accelerator
 from ema_pytorch import EMA
 from models.ema import LitEma
 
-from utils.general_utils import symmetrize_image_data, unsymmetrize_image_data, exists, convert_to_coord_format_2d
-from evals.eval import test_fid_ddpm, test_fid_ddpm_50k
+from utils.general_utils import exists
 
 # Trainer class
 class LDMTrainer(object):
@@ -81,6 +80,7 @@ class LDMTrainer(object):
             # Load from checkpoint
             print('Load VAE checkpoints!')
             data_pth = torch.load(os.path.join(args.data_config.save_pth, 'model-last.pt'), map_location='cpu')
+            self.pointnet.load_state_dict(data_pth['pointnet'])
             self.vaemodel.load_state_dict(data_pth['vaemodel'])
             self.mlp.load_state_dict(data_pth['mlp'])
 
@@ -153,7 +153,6 @@ class LDMTrainer(object):
 
                         ## LDM
                         z_xy, z_yz, z_xz = posterior_xy.sample(), posterior_yz.sample(), posterior_xz.sample()
-                        b, c = z_xy.shape[0], z_xy.shape[1]
                         z = torch.cat([z_xy, z_xz, z_yz], dim = 1)
                         z = z.detach()
                         p_loss,_ = self.diffusion_process(z)
@@ -167,8 +166,6 @@ class LDMTrainer(object):
                     self.accelerator.wait_for_everyone()
 
                     if self.current_iters % self.gradient_accumulate_every == self.gradient_accumulate_every - 1:
-                        #if self.accelerator.sync_gradients:
-                        #    self.accelerator.clip_grad_norm_(self.diffusion_process.parameters(), 1.)
                         self.dae_opt.step()
                         self.dae_opt.zero_grad()
                         self.accelerator.wait_for_everyone()
@@ -180,13 +177,10 @@ class LDMTrainer(object):
                     shape = (self.test_batch_size, *_shape)
                     self.ema.ema_model.eval()
                     
-                    #with self.accelerator.autocast():
-                    with torch.inference_mode():
-                        z_test = self.ema.ema_model.sample(shape=shape, noise = noise_fix)
-                        z_xy = z_test[:, :self.channels]
-                        z_xz = z_test[:, self.channels: self.channels*2]
-                        z_yz = z_test[:, self.channels*2:]
-                        mesh, mesh2 = self.mesh_gen.generate_mesh_fromdiffusion((z_xy, z_yz, z_xz), self.vaemodel, self.mlp, self.accelerator.device)
+                    with self.accelerator.autocast():
+                        with torch.inference_mode():
+                            z_test = self.ema.ema_model.sample(shape=shape, noise = noise_fix)
+                            mesh, mesh2 = self.mesh_gen.generate_mesh_fromdiffusion(z_test, self.vaemodel, self.mlp, self.accelerator.device)
                     mesh.export(os.path.join(self.results_pth, '{}.obj'.format(self.step)))
                     
 
@@ -197,14 +191,15 @@ class LDMTrainer(object):
                 self.step += 1
                 pbar.update(1)
 
+
     def eval(self):
+        pass
+    
+    @torch.no_grad()
+    def generate(self):
         shape = [1, 3*self.channels, self.size1, self.size2]
-        #for 
         for i in range(self.test_batch_size):
-            with torch.inference_mode():
+            with self.accelerator.autocast():
                 z_test = self.ema.ema_model.sample(shape=shape)
-                z_xy = z_test[:, :self.channels]
-                z_xz = z_test[:, self.channels: self.channels*2]
-                z_yz = z_test[:, self.channels*2:]
-                mesh, mesh2 = self.mesh_gen.generate_mesh_fromdiffusion((z_xy, z_yz, z_xz), self.vaemodel, self.mlp, self.accelerator.device)
+                mesh, mesh2 = self.mesh_gen.generate_mesh_fromdiffusion(z_test, self.vaemodel, self.mlp, self.accelerator.device)
             mesh.export(os.path.join(self.results_pth, 'test/{}.obj'.format(i)))

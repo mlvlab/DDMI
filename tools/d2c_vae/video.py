@@ -1,3 +1,9 @@
+"""
+wild mixture of
+https://github.com/autonomousvision/convolutional_occupancy_networks
+for implementing occupancy function
+"""
+
 import os
 import torch
 import numpy as np
@@ -79,7 +85,7 @@ class D2CTrainer(object):
         else:
             self.scheduler = None
 
-        ## Discrimin
+        ## Discriminator
         if args.loss_config.adversarial:
             assert self.criterion is not None
             self.opt_d = AdamW(list(self.criterion.discriminator_2d.parameters()) + list(self.criterion.discriminator_3d.parameters()), 
@@ -158,7 +164,6 @@ class D2CTrainer(object):
     def train(self):
         device = self.accelerator.device
         optimizer_idx = True
-
         coords = convert_to_coord_format_3d(1, 256, 256, 16, device = device, hstart=-255/256, hend=255/256, 
                                             wstart=-255/256, wend=255/256, tstart = -15/16, tend = 15/16)
         
@@ -185,10 +190,15 @@ class D2CTrainer(object):
                     with self.accelerator.autocast():
                         if isinstance(self.vaemodel, torch.nn.parallel.DistributedDataParallel):
                             posterior_xy, posterior_yt, posterior_xt = self.vaemodel.module.encode(x)
-                            pe_xy, pe_yt, pe_xt = self.vaemodel.module.decode(posterior_xy.sample(), posterior_yt.sample(), posterior_xt.sample())
+                            xy, yt, xt = posterior_xy.sample(), posterior_yt.sample(), posterior_xt.sample()
+                            b, c = xy.shape[0], xy.shape[1]
+                            z = torch.cat([xy.reshape(b, c, -1), xt.reshape(b, c, -1), yt.reshape(b, c, -1)], dim = 2)
+                            pe_xy, pe_yt, pe_xt = self.vaemodel.module.decode(z)
                         else:
                             posterior_xy, posterior_yt, posterior_xt = self.vaemodel.encode(x)
-                            pe_xy, pe_yt, pe_xt = self.vaemodel.decode(posterior_xy.sample(), posterior_yt.sample(), posterior_xt.sample())
+                            b, c = xy.shape[0], xy.shape[1]
+                            z = torch.cat([xy.reshape(b, c, -1), xt.reshape(b, c, -1), yt.reshape(b, c, -1)], dim = 2)
+                            pe_xy, pe_yt, pe_xt = self.vaemodel.decode(z)
                         output = self.mlp(coords, (pe_xy, pe_yt, pe_xt))
                         if optimizer_idx:
                             ## Recon Loss
@@ -289,9 +299,9 @@ class D2CTrainer(object):
         coords = convert_to_coord_format_3d(1, 256, 256, 16, device = device, hstart=-255/256, hend=255/256, 
                                             wstart=-255/256, wend=255/256, tstart = -15/16, tend = 15/16)
         if self.test_data is not None:
-            print('Evaluating R-FVD!')
-            fvd = test_ifvd(self.vaemodel, self.mlp, coords, self.test_data, device)
-            print('FVD:', fvd)
+            print('Evaluating rFVD!')
+            rfvd = test_rfvd(self.vaemodel, self.mlp, coords, self.test_data, device)
+            print('rFVD:', rfvd)
         else:
             print('NO Test Dataset')
             pass

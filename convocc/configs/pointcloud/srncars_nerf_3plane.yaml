@@ -2,7 +2,7 @@ method: conv_onet
 data:
   input_type: pointcloud
   classes: ["cars"]
-  path: ./data_path/
+  path: /hub_data2/dogyun/data/pts2nerf_data
   pointcloud_n: 3000
   pointcloud_noise: 0.005
   points_subsample: 2048
@@ -15,9 +15,10 @@ data:
 model:
   encoder: pointnet_local_pool
   encoder_kwargs:
-    hidden_dim: 32
+    hidden_dim: 256
     plane_type: ['xz', 'xy', 'yz']
-    plane_resolution: 128
+    plane_resolution: 64
+    n_blocks: 7
   decoder: simple_local
   decoder_kwargs:
     sample_mode: bilinear # bilinear / nearest
@@ -27,7 +28,7 @@ model:
     use_bias: True
     peturb: 1
     N_importance: 0
-    N_samples: 96
+    N_samples: 256
     N_rand: 1024
     white_bkgd: True
     use_viewdirs: True

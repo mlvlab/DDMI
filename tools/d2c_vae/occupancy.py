@@ -1,3 +1,9 @@
+"""
+wild mixture of
+https://github.com/autonomousvision/convolutional_occupancy_networks
+for implementing occupancy function
+"""
+
 import os
 import torch
 import numpy as np
@@ -161,10 +167,14 @@ class D2CTrainer(object):
                         f_planes = self.pointnet(inputs)
                         if isinstance(self.vaemodel, torch.nn.parallel.DistributedDataParallel):
                             posterior_xy, posterior_yz, posterior_xz = self.vaemodel.module.encode([f_planes['xy'], f_planes['yz'], f_planes['xz']])
-                            pe_xy, pe_yz, pe_xz = self.vaemodel.module.decode((posterior_xy.sample(), posterior_yz.sample(), posterior_xz.sample()))
+                            xy, yz, xz = posterior_xy.sample(), posterior_yz.sample(), posterior_xz.sample()
+                            z = torch.cat([xy, yz, xz], dim = 1)
+                            pe_xy, pe_yz, pe_xz = self.vaemodel.module.decode(z)
                             
                         else:
                             posterior_xy, posterior_yz, posterior_xz = self.vaemodel.encode([f_planes['xy'], f_planes['yz'], f_planes['xz']])
+                            xy, yz, xz = posterior_xy.sample(), posterior_yz.sample(), posterior_xz.sample()
+                            z = torch.cat([xy, yz, xz], dim = 1)
                             pe_xy, pe_yz, pe_xz = self.vaemodel.decode((posterior_xy.sample(), posterior_yz.sample(), posterior_xz.sample()))
 
                         output = self.mlp(coords, (pe_xy, pe_yz, pe_xz))
@@ -218,4 +228,4 @@ class D2CTrainer(object):
                 pbar.update(1)
 
     def eval(self):
-        raise NotImplementedError
+        pass

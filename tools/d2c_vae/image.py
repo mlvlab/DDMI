@@ -201,7 +201,6 @@ class D2CTrainer(object):
                             ## Recon Loss
                             recon_loss = torch.sum(torch.abs(output.contiguous() - target.contiguous()), dim = (1,2,3))        
                             recon_loss = torch.mean(recon_loss)
-                            #recon_loss = torch.mean(torch.abs(output.contiguous() - target.contiguous()))        
 
                             ## Perceptual loss
                             p_coeff = 1.
@@ -258,8 +257,8 @@ class D2CTrainer(object):
                 if self.step % self.save_and_sample_every == 0 and self.accelerator.is_main_process:
                     if self.test_data is not None:
                         coords = convert_to_coord_format_2d(1, 256, 256, device = device, hstart=-255/256, hend = 255/256, wstart=-255/256, wend = 255/256)
-                        fid = test_rfid(self.model, self.mlp, coords, self.test_data, self.results_pth, device, save = False)
-                        print('FID:', fid)
+                        rfid = test_rfid(self.model, self.mlp, coords, self.test_data, self.results_pth, device, save = False)
+                        print('rFID:', rfid)
                     else:
                         pass
 
@@ -270,6 +269,7 @@ class D2CTrainer(object):
                 self.step += 1
                 pbar.update(1)
     
+
     def eval(self):
         device = self.accelerator.device
         coords = convert_to_coord_format_2d(1, self.test_resolution, 
@@ -281,7 +281,7 @@ class D2CTrainer(object):
                                             wend = (self.test_resolution-1)/self.test_resolution)
         
         if self.test_data is not None:
-            fid = test_rfid(self.model, self.mlp, coords, self.test_data, self.results_pth, device, save = True)
-            print('FID:', fid)
+            rfid = test_rfid(self.model, self.mlp, coords, self.test_data, self.results_pth, device, save = True)
+            print('rFID:', rfid)
         else:
             pass

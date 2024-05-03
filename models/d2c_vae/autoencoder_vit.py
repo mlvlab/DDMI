@@ -185,25 +185,14 @@ class VITAutoencoder(nn.Module):
 
         return xy_posterior, yt_posterior, xt_posterior
 
-    '''
-    def decode(self, xy, yt, xt):
-        xy = self.post_xy(xy)
-        yt = self.post_yt(yt)
-        xt = self.post_xt(xt)
+    def decode(self, x):
+        size1=self.res // (2**self.downsample_factor)
+        size2=self.res // (2**self.downsample_factor)
+        size3 = self.frames
+        xy = x[:, :, 0:size1*size2].view(x.size(0), x.size(1), size1, size2)
+        xt = x[:, :, size1*size2:size1*(size2+size3)].view(x.size(0), x.size(1), size3, size2)
+        yt = x[:, :, size1*(size2+size3):size1*(size2+size3+size3)].view(x.size(0), x.size(1), size3, size2)
 
-        ## Plane conditioning
-        t_xy = torch.zeros((xy.shape[0],), device=xy.device).long()
-        t_yt = torch.ones((yt.shape[0],), device=xy.device).long()
-        t_xt = torch.ones((xt.shape[0],), device=xy.device).long() * 2
-
-        xy = self.decoder(xy, t=t_xy, plane='xy')
-        yt = self.decoder(yt, t=t_yt, plane='yt')
-        xt = self.decoder(xt, t=t_xt, plane='xt')
-        
-        return xy, yt, xt
-    '''
-
-    def decode(self, xy, yt, xt):
         xy = self.post_xy(xy)
         yt = self.post_yt(yt)
         xt = self.post_xt(xt)
@@ -223,7 +212,10 @@ class VITAutoencoder(nn.Module):
             xy = xy_posterior.mode()
             yt = yt_posterior.mode()
             xt = xt_posterior.mode()
-        dec = self.decode(xy, yt, xt)
+        
+        b, c = xy.shape[0], xy.shape[1]
+        x = torch.cat([xy.reshape(b, c, -1), xt.reshape(b, c, -1), yt.reshape(b, c, -1)], dim = 2)
+        dec = self.decode(x)
         
         return dec, xy_posterior, yt_posterior, xt_posterior
 

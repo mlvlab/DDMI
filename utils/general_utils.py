@@ -200,6 +200,11 @@ def multiscale_image_transform(x, size, multiscale, device):
         
     return target, coordinate, relative_scale, y
 
+
+def get_scale_injection(current_res, anchor_res=256):
+    scale = anchor_res / current_res
+    return scale
+
 # ====================================================================================================================
 
 def symmetrize_image_data(images):

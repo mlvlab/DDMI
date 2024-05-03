@@ -13,13 +13,13 @@ This repository is an official implementation of the ICLR 2024 paper DDMI (Domai
   <img src="asset/mainresult.png" width="800px" />
 </div>
 
-## Overall Framework
+# Overall Framework
 We propose a latent diffusion model that generates hierarchically decomposed positional embeddings of Implicit neural representations, enabling high-quality generation on various data domains.
 <div align="center">
   <img src="asset/main.png" width="800px" />
 </div>
 
-## Setup
+# Setup
 To install requirements, run:
 ```bash
 git clone https://github.com/mlvlab/DDMI.git
@@ -34,7 +34,7 @@ pip install accelerate omegaconf einops pyspng natsort av ema-pytorch timm ninja
 ```
 (RECOMMENDED, linux) Install [PyTorch 2.2.0 with CUDA 11.8](https://pytorch.org/get-started/locally/) for [xformers](https://github.com/facebookresearch/xformers/edit/main/README.md), recommended for memory-efficient computation. Also, install pytorch compatible [torch-scatter](https://data.pyg.org/whl/torch-2.2.0%2Bcu118.html) version for 3D.
 
-## Data Preparation
+# Data Preparation
 ### Image
 We have utilized two datasets for 2D image experiments: [AFHQ-V2](https://github.com/clovaai/stargan-v2) and [CelebA-HQ](https://github.com/tkarras/progressive_growing_of_gans). We have used `dog` and `cat` categories in AFHQ-V2 dataset. You may change the location of the dataset by changing `data_dir` of config files in `configs/`, and specify `test_data_dir` to measure r-FID during training. Each dataset should be structured as below:
 
@@ -83,21 +83,44 @@ Data
         |-- ...
 ```
 
-## Training
+# Training
 To train other signal domains, you may change the `domain` of config files in `configs/`, e.g., `image`, `occupancy`, `nerf`, or `video`. Currently, different network is trained for different signal domain. By default, the model's checkpoint will be stored in `./results`. If training D2C-VAE in the first stage is unstable, i.e., NAN value, try increasing `sn_reg_weight_decay` or `sn_reg_weight_decay_init` of config files to increase the weight of spectral regularization.
-### First-stage training (D2C-VAE)
+## First-stage training (Discrete to Continuous space VAE)
 D2C-VAE aims to learn the latent space that generates PEs between discrete data and continuous function, i.e., point clouds to occupancy function, pixel image to continuous RGB image.
 ```bash
 CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --multi_gpu --num_processes=4 main.py --exp d2c-vae --configs configs/d2c-vae/img.yaml
 ```
 
-### Second-stage training (LDM)
+## Second-stage training (Latent diffusion model)
+After training D2C-VAE, we learn the latent diffusion model on the latent space of D2C-VAE.
+Since latent variable is represented as a set of 2D planes, we use 2D convolution UNet model for LDM across different modalities.
 ```bash
 CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --multi_gpu --num_processes=4 main.py --exp ldm --configs configs/ldm/img.yaml
 ```
 
-## Generation
-You can generate a signal from the pre-trained model in `./results` by changing the `mode` of config files to `eval` from `train`, then run:
+# Evaluation
+We have utilized several evaluation metrics for assessing generation quality: FID for image, MMD and COV for 3D shape, and FVD for video evaluation.
+### Image
+To evaluate FID of trained 2D image model, run the following script by changing the `mode` of config files to `eval` from `train`:
+```bash
+python main.py --exp ldm --configs configs/ldm/img.yaml
+```
+
+### Video
+To evaluate FVD of trained video model, run the following script by changing the `mode` of config files to `eval` from `train`:
+```bash
+python main.py --exp ldm --configs configs/ldm/video.yaml
+```
+
+### 3D occupancy
+You first need to generate occupancy function and process it to make point clouds.
+First, run the following script by changing the `mode` of config files to `gen` from `train`.
+```bash
+python main.py --exp ldm --configs configs/ldm/occupancy.yaml
+```
+
+# Generation
+You can generate a signal from the pre-trained model in `./results` by changing the `mode` of config files to `gen` from `train`, then run:
 ```bash
 python main.py --exp ldm --configs configs/ldm/img.yaml
 ```

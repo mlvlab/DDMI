@@ -31,7 +31,7 @@ class MLP(nn.Module):
         self.net_res4 = StyledResBlock(ch, ch, 1, ch, demodulate = True, activation = None)
         self.torgb = ToRGB(ch, out_ch, ch, upsample = False)
        
-    def forward(self, coords, hdbf, si):
+    def forward(self, coords, hdbf, si=1):
         # Enables us to compute gradients w.r.t. coordinates
         coords = coords.clone().detach().requires_grad_(True)
         device = coords.device

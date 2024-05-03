@@ -469,24 +469,8 @@ class DDPM(nn.Module):
     def get_mixed_prediction(self, mixed_prediction, param, mixing_logit, mixing_component):
         if mixed_prediction:
             assert mixing_component is not None
-            #if self.domain=='image' or 'occupancy':
             coeff = torch.sigmoid(mixing_logit)
             param = (1 - coeff) * mixing_component + coeff * param
-            # else:
-            #     mixing_logit1, mixing_logit2, mixing_logit3 = mixing_logit
-            #     coeff1 = torch.sigmoid(mixing_logit1)
-            #     coeff2 = torch.sigmoid(mixing_logit2)
-            #     coeff3 = torch.sigmoid(mixing_logit3)
-            #     param1 = param[:,:, 0:16*16]
-            #     param2 = param[:,:, 16*16:16*16+16*16]
-            #     param3 = param[:,:, 16*16+16*16:]
-            #     mixing_component1 = mixing_component[:,:, 0:16*16]
-            #     mixing_component2 = mixing_component[:,:, 16*16:16*16+16*16]
-            #     mixing_component3 = mixing_component[:,:, 16*16+16*16:]
-            #     a1 = (1-coeff1) * mixing_component1 + coeff1 * param1
-            #     a2 = (1-coeff2) * mixing_component2 + coeff2 * param2
-            #     a3 = (1-coeff3) * mixing_component3 + coeff3 * param3
-            #     param = torch.cat([a1,a2,a3], dim=-1)
         return param
 
     def get_mixing_component(self, noisy, t):

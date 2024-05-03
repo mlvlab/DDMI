@@ -1,6 +1,6 @@
 model:
-  DiT: False # Currently, we do not support diffusion transformer model
-  resume: False
+  DiT: False
+  resume: True
   use_fp16: True
   amp: True
   lr: 1e-4
@@ -10,12 +10,12 @@ model:
       epochs: 1500
       save_and_sample_every: 25
       ema_decay: 0.9999
-      ema_update_every: 1
+      ema_update_every: 5
       gradient_accumulate_every: 1
 
     unetconfig:
-      size1: 64
-      size2: 64
+      size1: 32
+      size2: 32
       size3: 16
       in_channels: 64
       model_channels: 256
@@ -28,15 +28,15 @@ model:
       channel_mult:
       - 1
       - 2
-      - 3
       - 4
-      num_head_channels: 32
+      - 6
+      num_head_channels: 64
       use_checkpoint: False
       use_fp16: False
 
     ddconfig:
       double_z: True
-      timesformer_channels: 384
+      timesformer_channels: 512
       splits: 1
       patch_size: 8
       resolution: 256
@@ -54,7 +54,7 @@ model:
       hdbf_resolutions: [128, 64]
       inter_attn_resolutions: [32, 64, 128, 256]
       dropout: 0.0
-      attn_type: vanilla-multihead
+      attn_type: vanilla-multihead-expand
 
     mlpconfig:
       in_ch: 2
@@ -71,13 +71,15 @@ model:
       mixed_init: -6
       sampling_timesteps: 200
       ddim_sampling_eta: 0.
+      domain: video
 
 data:
   domain: video
-  mode: train
+  mode: gen
   dataset: SKY
-  data_dir: ./data_path/
-  save_pth: ./save_path/
+  data_dir: /hub_data2/dogyun/SKY/
+  save_pth: /hub_data3/dogyun/ICLR/2step/sky_ldm
   batch_size: 2
-  test_batch_size: 8
+  test_batch_size: 1
+  test_resolution: 256
   frames: 16

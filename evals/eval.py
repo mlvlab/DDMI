@@ -11,7 +11,7 @@ from evals.fvd.fvd import get_fvd_logits, frechet_distance
 from evals.fvd.download import load_i3d_pretrained
 from evals.fid.inception import InceptionV3
 from evals.fid.fid_score import calculate_frechet_distance
-from utils.general_utils import symmetrize_image_data, unsymmetrize_image_data
+from utils.general_utils import symmetrize_image_data, unsymmetrize_image_data, get_scale_injection
 import torchvision.transforms.functional as trans_F
 import os
 
@@ -70,6 +70,9 @@ def test_psnr(rank, model, loader, it, logger=None):
 
     model.train()
     return losses['psnr'].average
+
+
+### Image evaluation metric
 
 def test_rfid(vaemodel, mlp, coords, loader, path, device, save):
     check = time.time()
@@ -181,11 +184,9 @@ def test_fid_ddpm(ema, vaemodel, mlp, coords, loader, accelerator, path=None, sa
     fid_value = calculate_frechet_distance(real_mu, real_sigma, fake_mu, fake_sigma)
     return fid_value
 
-def test_fid_ddpm_50k(ema, vaemodel, mlp, coords, loader, accelerator, path=None, save=False):
+def test_fid_ddpm_N(ema, vaemodel, mlp, coords, loader, accelerator, shape, total_fake_number, path=None, save=False):
     real_embeddings = []
     fake_embeddings = []
-    fakes = []
-    reals = []
 
     device = accelerator.device    
     ema.ema_model.eval()
@@ -195,6 +196,7 @@ def test_fid_ddpm_50k(ema, vaemodel, mlp, coords, loader, accelerator, path=None
     model = InceptionV3([block_idx]).to(device)
     model.eval()
     size = coords.shape[2]
+    si = get_scale_injection(size)
     with torch.inference_mode():
         for n, (real, idx) in enumerate(loader):
             batch_size = real.size(0)
@@ -210,9 +212,8 @@ def test_fid_ddpm_50k(ema, vaemodel, mlp, coords, loader, accelerator, path=None
     real_mu = np.mean(real_embeddings, axis=0)
     real_sigma = np.cov(real_embeddings, rowvar=False)
 
-    batch_size = 5
-    iter = 50000 // batch_size
-    shape = [batch_size, 64, 64, 64]
+    batch_size = shape[0]
+    iter = total_fake_number // batch_size
     with torch.inference_mode():
         for idx in range(iter):
             with accelerator.autocast():
@@ -221,7 +222,7 @@ def test_fid_ddpm_50k(ema, vaemodel, mlp, coords, loader, accelerator, path=None
                     pe_test = vaemodel.module.decode(z_test)
                 else:
                     pe_test = vaemodel.decode(z_test)
-                fake = mlp(coords, hdbf=pe_test, si=1)
+                fake = mlp(coords, hdbf=pe_test, si=si)
             fake = fake.clamp(-1., 1.)
             fake2 = (fake+1)/2
             
@@ -230,8 +231,7 @@ def test_fid_ddpm_50k(ema, vaemodel, mlp, coords, loader, accelerator, path=None
                 for k in range(fake.shape[0]):
                     fake_img = fake2[k].data.cpu().numpy().transpose(1,2,0)
                     fake_img = Image.fromarray((fake_img * 255).astype(np.uint8))
-                    fake_img.save(os.path.join((path), '256_50/50-Test-{}-{}.jpg'.format(idx, k)))
-                #vtils.save_image(fake, os.path.join((path), 'Test-{}.png'.format(idx)), normalize = True, scale_each = True)
+                    fake_img.save(os.path.join((path), 'gen-{}-{}.jpg'.format(idx, k)))
 
             pred_fake = model(fake)[0]
             pred_fake = pred_fake.squeeze(3).squeeze(2).cpu().numpy()
@@ -247,6 +247,9 @@ def test_fid_ddpm_50k(ema, vaemodel, mlp, coords, loader, accelerator, path=None
     fid_value = calculate_frechet_distance(real_mu, real_sigma, fake_mu, fake_sigma)
     return fid_value
 
+
+
+### Video evaluation Metric
 
 def test_rfvd(vaemodel, mlp, coords, loader, device, accelerator, logger=None):
     check = time.time()
@@ -303,47 +306,33 @@ def test_rfvd(vaemodel, mlp, coords, loader, device, accelerator, logger=None):
 
 def test_fvd_ddpm(ema, vaemodel, mlp, coords, loader, accelerator, shape, path=None, save=False):
     device = accelerator.device
-
-    channel, size1, size2, size3 = shape[0], shape[1], shape[2], shape[3]
     real_embeddings = []
     fake_embeddings = []
-    pred_embeddings = []
-
-    reals = []
-    fakes = []
-    predictions = []
-    shape = []
 
     i3d = load_i3d_pretrained(device)
     
     with torch.inference_mode():
         for n, (real, idx) in enumerate(loader):
-            if n > 512:
-                break
-            batch_size = real.size(0)
-            clip_length = real.size(1)
-            real = real.to(device)
+            #if n > 512:
+            #    break
             real = rearrange(real, 'b t c h w -> b t h w c') # videos
             real = real.type(torch.uint8).cpu()
             real_embeddings.append(get_fvd_logits(real.numpy(), i3d=i3d, device=device))
 
-        with accelerator.autocast():
-            shape_test = [real.shape[0], channel, size1*size2*size3]
-            z_test = ema.ema_model.sample(shape=shape_test)
-            z_xy = z_test[:, :, 0:size1*size2].view(z_test.size(0), z_test.size(1), size1, size2)
-            z_xt = z_test[:, :, size1*size2:size1*(size2+size3)].view(z.test.size(0), z_test.size(1), size3, size2)
-            z_yt = z_test[:, :, size1*(size2+size3):size1*(size2+size3+size3)].view(z_test.size(0), z_test.size(1), size3, size2)
-            if isinstance(vaemodel, torch.nn.parallel.DistributedDataParallel):
-                pe_test = vaemodel.module.decode((z_xy, z_yt, z_xt))
-            else:
-                pe_test = vaemodel.decode((z_xy, z_yt, z_xt))
-            fake = mlp(coords, pe_test)
-        fake = fake.clamp(-1., 1)
-        fake = rearrange((fake.clamp(-1,1) + 1) * 127.5, 'b c t h w -> b t h w c', b=real.size(0))
-        fake = fake.type(torch.uint8)
-        fake_embeddings.append(get_fvd_logits(fake.numpy(), i3d=i3d, device=device))
+            with accelerator.autocast():
+                z_test = ema.ema_model.sample(shape=shape)
+                if isinstance(vaemodel, torch.nn.parallel.DistributedDataParallel):
+                    pe_test = vaemodel.module.decode(z_test)
+                else:
+                    pe_test = vaemodel.decode(z_test)
+                fake = mlp(coords, pe_test)
+            fake = rearrange((fake.clamp(-1,1) + 1) * 127.5, 'b c t h w -> b t h w c', b=real.size(0))
+            fake = fake.type(torch.uint8)
+            fake_embeddings.append(get_fvd_logits(fake.cpu().numpy(), i3d=i3d, device=device))
     real_embeddings = torch.cat(real_embeddings)
     fake_embeddings = torch.cat(fake_embeddings)
+    print('Total number of real samples:', real_embeddings.shape[0])
+    print('Total number of real samples:', fake_embeddings.shape[0])
 
     fvd = frechet_distance(fake_embeddings.clone().detach(), real_embeddings.clone().detach())
     return fvd.item()

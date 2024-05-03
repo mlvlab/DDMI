@@ -111,7 +111,7 @@ def first_stage_train(args):
     ## NeRF
     elif args.domain =='nerf':
         from tools.d2c_vae.nerf import D2CTrainer
-        from models.d2c_vae.autoencoder_unet import Autoencoder
+        from models.d2c_vae.autoencoder_unet import Autoencoder3D
         from models.d2c_vae.mlp import MLPNeRF as MLP
         from models.d2c_vae.pointnet import LocalPoolPointnet
         from convocc.src import data, config
@@ -133,7 +133,7 @@ def first_stage_train(args):
         ## Get model
         # pointnet/config from https://github.com/autonomousvision/convolutional_occupancy_networks
         pointnet = LocalPoolPointnet(dim=cfg['data']['dim'], c_dim=cfg['model']['c_dim'], padding=cfg['data']['padding'], **cfg['model']['encoder_kwargs'])
-        vaemodel = Autoencoder(ddconfig=args.ddconfig, embed_dim=args.embed_dim)
+        vaemodel = Autoencoder3D(ddconfig=args.ddconfig, embed_dim=args.embed_dim)
         mlp = MLP(**args.mlpconfig, in_channels_dir=cfg['model']['TN']['input_ch_views_embed'])
 
         ## Mesh generator
@@ -265,9 +265,51 @@ def second_stage_train(args):
         else:
             from models.ldm.modules.diffusionmodules.openaimodel import UNetModel_Triplane
             diffusionmodel = UNetModel_Triplane(**args.unetconfig)
+        diffusion_process = DDPM(model=diffusionmodel, **args.ddpmconfig)
 
         ## Get trainer
         trainer = LDMTrainer(args, vaemodel, mlp, diffusionmodel, diffusion_process, train_loader, test_loader)
+
+    elif args.domain == 'nerf':
+        from tools.ldm.nerf import LDMTrainer
+        from models.d2c_vae.autoencoder_unet import Autoencoder
+        from models.d2c_vae.mlp import MLPNeRF as MLP
+        from models.d2c_vae.pointnet import LocalPoolPointnet
+        from diffusion.ddpm import DDPM
+        from convocc.src import data, config
+        from utils import nerf_helpers
+        from utils.nerf_dataset import NeRFShapeNetDataset
+
+        ## Get data
+        cfg = config.load_config(args.data_config.conv_config, 'convocc/configs/default.yaml')
+        train_data = NeRFShapeNetDataset(root_dir=cfg['data']['path'], classes=cfg['data']['classes'])
+        train_loader = torch.utils.data.DataLoader(train_data,
+                                       batch_size = args.data_config.batch_size,
+                                       shuffle=True,
+                                       num_workers=4,
+                                       )
+        
+        embed_fn, cfg['model']['TN']['input_ch_embed'] = nerf_helpers.get_embedder(cfg['model']['TN']['multires'], cfg['model']['TN']['i_embed'])
+        embeddirs_fn, cfg['model']['TN']['input_ch_views_embed']= nerf_helpers.get_embedder(cfg['model']['TN']['multires_views'], cfg['model']['TN']['i_embed'])
+        
+        ## Get model
+        # pointnet/config from https://github.com/autonomousvision/convolutional_occupancy_networks
+        pointnet = LocalPoolPointnet(dim=cfg['data']['dim'], c_dim=cfg['model']['c_dim'], padding=cfg['data']['padding'], **cfg['model']['encoder_kwargs'])
+        vaemodel = Autoencoder(ddconfig=args.ddconfig, embed_dim=args.embed_dim)
+        mlp = MLP(**args.mlpconfig, in_channels_dir=cfg['model']['TN']['input_ch_views_embed'])
+
+        if args.DiT:
+            from models.ldm.modules.diffusionmodules.maskedtransformer import MDTv2
+            diffusionmodel = MDTv2(input_size=16, in_channels=4*3, depth=24, hidden_size=1024, patch_size=2, num_heads=16, mask_ratio=0.3, cross_plane=False)
+        else:
+            from models.ldm.modules.diffusionmodules.openaimodel import UNetModel
+            diffusionmodel = UNetModel(**args.unetconfig)
+
+        diffusion_process = DDPM(model=diffusionmodel, **args.ddpmconfig)
+        mesh_gen = config.get_generator(cfg)
+
+        ## Get trainer
+        trainer = LDMTrainer(args, pointnet, vaemodel, mlp, diffusionmodel, diffusion_process, train_loader, mesh_gen, embed_fn, embeddirs_fn, cfg)
 
     else:
         raise ValueError('Undefined Domain!')
@@ -278,7 +320,10 @@ def second_stage_train(args):
         trainer.train()
         trainer.save()
     elif args.mode == 'eval':
-        print('Evaluation!')
+        print('FID Evaluation!')
         trainer.eval()
+    elif args.mode == 'gen':
+        print('Random image generation!')
+        trainer.generate()
     else:
         raise ValueError

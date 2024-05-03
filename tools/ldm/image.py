@@ -3,7 +3,6 @@ import torch
 import torchvision
 import numpy as np
 import copy
-from PIL import Image
 from tqdm import tqdm
 from torchvision import utils as vtils
 import torchvision.transforms.functional as trans_F
@@ -11,10 +10,9 @@ from timeit import default_timer as timer
 from accelerate import Accelerator
 from ema_pytorch import EMA
 
-
 from models.ddmi import DDMI
-from utils.general_utils import symmetrize_image_data, unsymmetrize_image_data, exists, convert_to_coord_format_2d
-from evals.eval import test_fid_ddpm, test_fid_ddpm_50k
+from utils.general_utils import symmetrize_image_data, unsymmetrize_image_data, exists, convert_to_coord_format_2d, get_scale_injection
+from evals.eval import test_fid_ddpm, test_fid_ddpm_N
 
 # Trainer class
 class LDMTrainer(object):
@@ -58,10 +56,9 @@ class LDMTrainer(object):
         self.num_total_iters = len(data) * self.epochs
         self.gradient_accumulate_every = args.loss_config.gradient_accumulate_every
         self.test_resolution = args.data_config.test_resolution
-        self.vae_scale_factor = 1.0
 
         # Optimizers
-        self.dae_opt = torch.optim.AdamW(diffusion_process.parameters(), lr = args.lr)
+        self.dae_opt = torch.optim.AdamW(diffusion_process.parameters(), lr = args.lr, weight_decay=0.)
 
         if self.accelerator.is_main_process:
             self.ema = EMA(diffusion_process, beta = args.loss_config.ema_decay, update_every = args.loss_config.ema_update_every)
@@ -82,7 +79,6 @@ class LDMTrainer(object):
             self.vaemodel.load_state_dict(data_pth['model'])
             self.mlp.load_state_dict(data_pth['mlp'])
 
-        # Wrap with accelerator
         self.data, self.vaemodel, self.mlp, self.diffusion_process, self.dae_opt = self.accelerator.prepare(self.data, self.vaemodel, self.mlp, self.diffusion_process, self.dae_opt)
 
         ## Save directory
@@ -118,7 +114,7 @@ class LDMTrainer(object):
         self.current_iters = data['current_iters']
         self.dae_opt.load_state_dict(data['dae_opt'])
         if self.accelerator.is_main_process:
-            self.ema.load_state_dict(data['ema'])
+            self.ema.load_state_dict(data['ema'], strict=False)
 
         if exists(self.accelerator.scaler) and exists(data['scaler']):
             self.accelerator.scaler.load_state_dict(data['scaler'])
@@ -128,19 +124,21 @@ class LDMTrainer(object):
         self.vaemodel.eval()
         self.mlp.eval()
         self.diffusion_process.train()
+        shape = (self.test_batch_size, self.channels, self.image_size, self.image_size)
         noise_fix = torch.randn((self.test_batch_size, self.channels, self.image_size, self.image_size), device = device)
 
         with tqdm(initial = self.step, total = self.epochs) as pbar:
             while self.step < self.epochs:
                 for idx, (x, _) in enumerate(self.data):
                     x = symmetrize_image_data(x)
-                    y = x
+                    y = trans_F.resize(x, 256, antialias = True)
+                    y = y.clamp(-1., 1.)
 
                     with self.accelerator.autocast():
                         ## Encode latent
                         with torch.no_grad():
                             if isinstance(self.vaemodel, torch.nn.parallel.DistributedDataParallel):
-                                z = self.vaemodel.module.encode(y).sample() * self.vae_scale_factor
+                                z = self.vaemodel.module.encode(y).sample()
                             else:
                                 z = self.vaemodel.encode(y).sample()
 
@@ -164,20 +162,20 @@ class LDMTrainer(object):
                             self.ema.update()
 
                 if self.step % self.save_and_sample_every == 0 and self.accelerator.is_main_process: 
-                    coords = convert_to_coord_format_2d(1, 256, 256, device = device, hstart=-255/256, hend = 255/256, wstart=-255/256, wend = 255/256)
+                    coords = convert_to_coord_format_2d(1, 256, 256, device = self.accelerator.device, hstart=-255/256, hend = 255/256, wstart=-255/256, wend = 255/256)
                     self.ema.ema_model.eval()
                     with self.accelerator.autocast():
                         with torch.inference_mode():
-                            z_test = self.ema.ema_model.sample(batch_size = self.test_batch_size, noise = noise_fix) / self.vae_scale_factor
+                            z_test = self.ema.ema_model.sample(shape = shape, noise = noise_fix)
                             if isinstance(self.vaemodel, torch.nn.parallel.DistributedDataParallel):
                                 pe_test = self.vaemodel.module.decode(z_test)
                             else:
                                 pe_test = self.vaemodel.decode(z_test)
-                            output_img = self.mlp(coords, hdbf=pe_test, si=1)
+                            output_img = self.mlp(coords, hdbf=pe_test)
                     output_img = output_img.clamp(min = -1., max = 1.)
                     output_img = unsymmetrize_image_data(output_img)
 
-                    vtils.save_image(output_img, os.path.join(self.results_pth, '{}.png'.format(self.step)), normalize = False, scale_each = False)
+                    vtils.save_image(output_img, os.path.join(self.results_pth, '{}.jpg'.format(self.step)), normalize = False, scale_each = False)
                     self.save(step = self.step)
                 
                 if self.step % 100 == 0 and self.accelerator.is_main_process and self.step > 300:
@@ -192,10 +190,7 @@ class LDMTrainer(object):
                 self.step += 1
                 pbar.update(1)
 
-
     def eval(self):
-        print('Start Generation')
-        os.makedirs(self.args.data_config.save_gen, exist_ok=True)
         device = self.accelerator.device
         coords = convert_to_coord_format_2d(1, self.test_resolution, 
                                             self.test_resolution, 
@@ -205,23 +200,33 @@ class LDMTrainer(object):
                                             wstart=-(self.test_resolution-1)/self.test_resolution, 
                                             wend = (self.test_resolution-1)/self.test_resolution)
         
-        
         shape = [self.test_batch_size, self.channels, self.image_size, self.image_size]
-        iters = self.args.data_config.num_samples // self.test_batch_size
-        self.ema.ema_model.eval()
+        self.results_fid = os.path.join(self.results_folder, 'fid50k')
+        os.makedirs(self.results_fid, exist_ok=True)
+        fid = test_fid_ddpm_N(self.ema, self.vaemodel, self.mlp, coords, self.data, self.accelerator, shape, 50000, self.results_pth, save=True)
+        print('Step {} FID: {}'.format(self.step, fid))
 
-        for idx in range(iters):
-            with self.accelerator.autocast():
-                with torch.inference_mode():
-                    z_test = self.ema.ema_model.sample(batch_size = self.test_batch_size) / self.vae_scale_factor
-                    if isinstance(self.vaemodel, torch.nn.parallel.DistributedDataParallel):
-                        pe_test = self.vaemodel.module.decode(z_test)
-                    else:
-                        pe_test = self.vaemodel.decode(z_test)
-                    output_img = self.mlp(coords, hdbf=pe_test, si=1)
-            output_img = output_img.clamp(min = -1., max = 1.)
-            fake = unsymmetrize_image_data(output_img)
-            for k in range(fake.shape[0]):
-                    fake_img = fake[k].data.cpu().numpy().transpose(1,2,0)
-                    fake_img = Image.fromarray((fake_img * 255).astype(np.uint8))
-                    fake_img.save(os.path.join(self.args.data.config.save_gen, 'gen-{}-{}.jpg'.format(idx, k)))
+    def generate(self):
+        device = self.accelerator.device
+        coords = convert_to_coord_format_2d(1, self.test_resolution, 
+                                            self.test_resolution, 
+                                            device = device, 
+                                            hstart=-(self.test_resolution-1)/self.test_resolution, 
+                                            hend = (self.test_resolution-1)/self.test_resolution, 
+                                            wstart=-(self.test_resolution-1)/self.test_resolution, 
+                                            wend = (self.test_resolution-1)/self.test_resolution)
+        
+        si = get_scale_injection(self.test_resolution)
+        shape = [self.test_batch_size, self.channels, self.image_size, self.image_size]
+        self.ema.ema_model.eval()
+        with self.accelerator.autocast():
+            with torch.inference_mode():
+                z_test = self.ema.ema_model.sample(shape = shape)
+                if isinstance(self.vaemodel, torch.nn.parallel.DistributedDataParallel):
+                    pe_test = self.vaemodel.module.decode(z_test)
+                else:
+                    pe_test = self.vaemodel.decode(z_test)
+                output_img = self.mlp(coords, hdbf=pe_test, si=si)
+        output_img = output_img.clamp(min = -1., max = 1.)
+        output_img = unsymmetrize_image_data(output_img)
+        vtils.save_image(output_img, os.path.join(self.results_pth, 'generation.jpg'), normalize = False, scale_each = False)

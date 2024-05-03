@@ -7,7 +7,6 @@ from typing import Optional, Any
 
 from models.ldm.modules.attention import LinearAttention
 from models.ldm.modules.attention_efficient import MemoryEfficientCrossAttention
-#from models.ldm.modules.diffusionmodules.openaimodel import AttentionBlock1D
 from models.ldm.modules.distributions import DiagonalGaussianDistribution
 
 try:
@@ -555,7 +554,7 @@ def make_attn(in_channels, attn_type="vanilla"):
 '''
 
 def make_attn(in_channels, attn_type="vanilla", attn_kwargs=None):
-    assert attn_type in ["vanilla", "vanilla-multihead", "vanilla-1d", "vanilla-1d-multihead", "memory-efficient-cross-attn", "linear", "none"], f'attn_type {attn_type} unknown'
+    assert attn_type in ["vanilla", "vanilla-multihead", "vanilla-multihead-expand", "vanilla-1d", "vanilla-1d-multihead", "vanilla-1d-multihead-expand", "memory-efficient-cross-attn", "linear", "none"], f'attn_type {attn_type} unknown'
     #if XFORMERS_IS_AVAILBLE and attn_type == "vanilla":
     #    attn_type = "vanilla-xformers"
     print(f"making attention of type '{attn_type}' with {in_channels} in_channels")
@@ -575,7 +574,7 @@ def make_attn(in_channels, attn_type="vanilla", attn_kwargs=None):
     elif attn_type =='vanilla-multihead-expand':
         if XFORMERS_IS_AVAILBLE:
             print(f"building MemoryEfficientAttnBlock with {in_channels} in_channels...")
-            return MemoryEfficientAttnBlock_expand(in_channels, num_heads=16)
+            return MemoryEfficientAttnBlock_expand(in_channels, num_heads=4)
         else:
             raise ValueError('Invalid without xformer packages')
     elif attn_type == "vanilla-1d":
@@ -588,12 +587,13 @@ def make_attn(in_channels, attn_type="vanilla", attn_kwargs=None):
         if XFORMERS_IS_AVAILBLE:
             print(f"building MemoryEfficientAttnBlock with {in_channels} in_channels...")
             return MemoryEfficientAttnBlock1D(in_channels, num_heads=16)
+            #return MemoryEfficientAttnBlock1D(in_channels, num_heads=8)
         else:
             return AttnBlock1d(in_channels, num_heads=16)
     elif attn_type == "vanilla-1d-multihead-expand":
         if XFORMERS_IS_AVAILBLE:
             print(f"building MemoryEfficientAttnBlock with {in_channels} in_channels...")
-            return MemoryEfficientAttnBlock1D_expand(in_channels, num_heads=4)
+            return MemoryEfficientAttnBlock1D_expand(in_channels, num_heads=8)
         else:
             raise ValueError('Invalid without xformer packages')
     elif type == "memory-efficient-cross-attn":
@@ -905,7 +905,9 @@ class Autoencoder3D(nn.Module):
         return posterior_xy, posterior_yz, posterior_xz
 
     def decode(self, x):
-        xy, yz, xz = x[0], x[1], x[2]
+        xy = x[:, :self.embed_dim]
+        yz = x[:, self.embed_dim:self.embed_dim*2]
+        xz = x[:, 2*self.embed_dim:]
         xy = self.post_quant_conv_xy(xy)
         yz = self.post_quant_conv_yz(yz)
         xz = self.post_quant_conv_xz(xz)
@@ -937,218 +939,6 @@ class Autoencoder3D(nn.Module):
 '''
 Modules for tri-plane decoder
 '''
-class VideoDecoder(nn.Module):
-    def __init__(self, *, ch, out_ch, ch_mult=(1,2,4,8), num_res_blocks,
-                 attn_resolutions, dropout=0.0, resamp_with_conv=True, in_channels,
-                 resolution, z_channels, give_pre_end=False, tanh_out=False, use_linear_attn=False,
-                 attn_type="vanilla", hdbf_resolutions, inter_attn_resolutions, temb_ch=0, use_timestep=False, **ignorekwargs):
-        super().__init__()
-        if use_linear_attn: attn_type = "linear"
-        self.ch = ch
-        self.temb_ch = temb_ch
-        self.num_resolutions = len(ch_mult)
-        self.num_res_blocks = num_res_blocks
-        self.resolution = resolution
-        self.in_channels = in_channels
-        self.give_pre_end = give_pre_end
-        self.tanh_out = tanh_out
-        self.use_timestep = use_timestep
-        if self.use_timestep:
-            self.temb = nn.Module()
-            self.temb.dense = nn.ModuleList([
-                torch.nn.Linear(self.ch,
-                                self.temb_ch),
-                torch.nn.Linear(self.temb_ch,
-                                self.temb_ch),
-            ])
-
-        # compute in_ch_mult, block_in and curr_res at lowest res
-        in_ch_mult = (1,)+tuple(ch_mult)
-        block_in = ch*ch_mult[self.num_resolutions-1]
-        curr_res = resolution // 2**(self.num_resolutions-1)
-        self.z_shape = (1,z_channels,curr_res,curr_res)
-        print("Working with z of shape {} = {} dimensions.".format(
-            self.z_shape, np.prod(self.z_shape)))
-
-        # z to block_in
-        self.conv_in = torch.nn.Conv2d(z_channels,
-                                       block_in,
-                                       kernel_size=3,
-                                       stride=1,
-                                       padding=1)
-
-        # middle
-        self.mid = nn.Module()
-        self.mid.block_1 = ResnetBlock(in_channels=block_in,
-                                       out_channels=block_in,
-                                       temb_channels=self.temb_ch,
-                                       dropout=dropout)
-        self.mid.attn_1 = make_attn(block_in, attn_type=attn_type)
-        self.mid.block_2 = ResnetBlock(in_channels=block_in,
-                                       out_channels=block_in,
-                                       temb_channels=self.temb_ch,
-                                       dropout=dropout)
-        
-        self.mid_attn = AttentionBlock1D(
-                    block_in,
-                    use_checkpoint=False,
-                    num_heads=8,
-                    num_head_channels=block_in // 8,
-                    use_new_attention_order=False
-                    )
-
-        # upsampling
-        self.up = nn.ModuleList()
-        for i_level in reversed(range(self.num_resolutions)):
-            block = nn.ModuleList()
-            attn = nn.ModuleList()
-            hdbf = nn.ModuleList()
-            inter_attn = nn.ModuleList()
-            block_out = ch*ch_mult[i_level]
-            for i_block in range(self.num_res_blocks+1):
-                block.append(ResnetBlock(in_channels=block_in,
-                                         out_channels=block_out,
-                                         temb_channels=self.temb_ch,
-                                         dropout=dropout))
-                block_in = block_out
-                if curr_res in attn_resolutions:
-                    attn.append(make_attn(block_in, attn_type=attn_type))
-                
-                if curr_res in inter_attn_resolutions:
-                    inter_attn.append(AttentionBlock1D(
-                        block_in,
-                        use_checkpoint=False,
-                        num_heads=8,
-                        num_head_channels=block_in // 8,
-                        use_new_attention_order=False,
-                    ))
-            if curr_res in hdbf_resolutions:
-                hdbf.append(nn.Conv2d(block_in, out_ch, 1))
-
-            up = nn.Module()
-            up.block = block
-            up.attn = attn
-            up.hdbf = hdbf
-            up.inter_attn = inter_attn
-            if i_level != 0:
-                up.upsample = Upsample(block_in, resamp_with_conv)
-                curr_res = curr_res * 2
-            self.up.insert(0, up) # prepend to get consistent order
-
-        # end
-        self.norm_out = Normalize(block_in)
-        self.conv_out = torch.nn.Conv2d(block_in,
-                                        out_ch,
-                                        kernel_size=3,
-                                        stride=1,
-                                        padding=1)
-
-    def forward(self, z):
-        #assert z.shape[1:] == self.z_shape[1:]
-        hdbf_xy = []
-        hdbf_yt = []
-        hdbf_xt = []
-        
-        # timestep embedding
-        temb = None
-
-        h_xy = z[0]
-        h_yt = z[1]
-        h_xt = z[2]
-        # z to block_in
-        h_xy = self.conv_in(h_xy)
-        h_yt = self.conv_in(h_yt)
-        h_xt = self.conv_in(h_xt)
-
-        # middle
-        h_xy = self.mid.block_1(h_xy, temb)
-        h_xy = self.mid.attn_1(h_xy)
-        h_xy = self.mid.block_2(h_xy, temb)
-        
-        h_yt = self.mid.block_1(h_yt, temb)
-        h_yt = self.mid.attn_1(h_yt)
-        h_yt = self.mid.block_2(h_yt, temb)
-        
-        h_xt = self.mid.block_1(h_xt, temb)
-        h_xt = self.mid.attn_1(h_xt)
-        h_xt = self.mid.block_2(h_xt, temb)
-
-        res = h_xy.size(-2)
-        t   = h_xt.size(-2)
-
-        h_xy = h_xy.view(h_xy.size(0), h_xy.size(1), -1)
-        h_yt = h_yt.view(h_yt.size(0), h_yt.size(1), -1)
-        h_xt = h_xt.view(h_xt.size(0), h_xt.size(1), -1)
-
-        h = torch.cat([h_xy, h_xt, h_yt], dim=-1)
-        h = self.mid_attn(h)
-
-        h_xy = h[:, :, 0:res*res].view(h.size(0), h.size(1), res, res)
-        h_xt = h[:, :, res*res:res*(res+t)].view(h.size(0), h.size(1), t, res)
-        h_yt = h[:, :, res*(res+t):res*(res+t+t)].view(h.size(0), h.size(1), t, res)
-
-        # upsampling
-        for i_level in reversed(range(self.num_resolutions)):
-            for i_block in range(self.num_res_blocks+1):
-                h_xy = self.up[i_level].block[i_block](h_xy, temb)
-                h_yt = self.up[i_level].block[i_block](h_yt, temb)
-                h_xt = self.up[i_level].block[i_block](h_xt, temb)
-
-                if len(self.up[i_level].attn) > 0:
-                    h_xy = self.up[i_level].attn[i_block](h_xy)
-                    h_yt = self.up[i_level].attn[i_block](h_yt)
-                    h_xt = self.up[i_level].attn[i_block](h_xt)
-
-                if len(self.up[i_level].inter_attn) > 0:
-                    res = h_xy.size(-2)
-                    t   = h_xt.size(-2)
-
-                    h_xy = h_xy.view(h_xy.size(0), h_xy.size(1), -1)
-                    h_yt = h_yt.view(h_yt.size(0), h_yt.size(1), -1)
-                    h_xt = h_xt.view(h_xt.size(0), h_xt.size(1), -1)
-
-                    h = torch.cat([h_xy, h_xt, h_yt], dim=-1)
-                    h = self.up[i_level].inter_attn[i_block](h)
-
-                    h_xy = h[:, :, 0:res*res].view(h.size(0), h.size(1), res, res)
-                    h_xt = h[:, :, res*res:res*(res+t)].view(h.size(0), h.size(1), t, res)
-                    h_yt = h[:, :, res*(res+t):res*(res+t+t)].view(h.size(0), h.size(1), t, res)
-
-            if len(self.up[i_level].hdbf) > 0:
-                inter_bf_xy = self.up[i_level].hdbf[0](h_xy)
-                inter_bf_yt = self.up[i_level].hdbf[0](h_yt)
-                inter_bf_xt = self.up[i_level].hdbf[0](h_xt)
-                hdbf_xy.append(inter_bf_xy)
-                hdbf_yt.append(inter_bf_yt)
-                hdbf_xt.append(inter_bf_xt)
-            
-            if i_level != 0:
-                h_xy = self.up[i_level].upsample(h_xy, scale_factor=2.)
-                h_yt = self.up[i_level].upsample(h_yt, scale_factor=(1., 2.))
-                h_xt = self.up[i_level].upsample(h_xt, scale_factor=(1., 2.))
-
-        # end
-        if self.give_pre_end:
-            return h
-
-        h_xy = self.norm_out(h_xy)
-        h_yt = self.norm_out(h_yt)
-        h_xt = self.norm_out(h_xt)
-
-        h_xy = nonlinearity(h_xy)
-        h_yt = nonlinearity(h_yt)
-        h_xt = nonlinearity(h_xt)
-
-        h_xy = self.conv_out(h_xy)
-        h_yt = self.conv_out(h_yt)
-        h_xt = self.conv_out(h_xt)
-
-        hdbf_xy.append(h_xy)
-        hdbf_yt.append(h_yt)
-        hdbf_xt.append(h_xt)
-
-        return hdbf_xy, hdbf_yt, hdbf_xt
-
 
 class VideoDecoder_light(nn.Module):
     def __init__(self, *, ch, out_ch, ch_mult=(1,2,4,8), num_res_blocks,
@@ -1201,18 +991,9 @@ class VideoDecoder_light(nn.Module):
                                        out_channels=block_in,
                                        temb_channels=self.temb_ch,
                                        dropout=dropout)
-        
-        # From PVDM
-        #self.mid_attn = AttentionBlock1D(
-        #            block_in,
-        #            use_checkpoint=False,
-        #            num_heads=8,
-        #            num_head_channels=block_in // 8,
-        #            use_new_attention_order=False
-        #            )
-
-        # modify
-        self.mid_attn = make_attn(block_in, attn_type='vanilla-1d-multihead')
+    
+        # modified from PVDM
+        self.mid_attn = make_attn(block_in, attn_type='vanilla-1d-multihead-expand')
 
         # upsampling
         self.up = nn.ModuleList()
@@ -1232,7 +1013,7 @@ class VideoDecoder_light(nn.Module):
                     attn.append(make_attn(block_in, attn_type=attn_type))
                 
             if curr_res in inter_attn_resolutions:
-                inter_attn.append(make_attn(block_in, attn_type='vanilla-1d-multihead'))
+                inter_attn.append(make_attn(block_in, attn_type='vanilla-1d-multihead-expand'))
 
             if curr_res in hdbf_resolutions:
                 hdbf.append(nn.Conv2d(block_in, out_ch, 1))
@@ -1387,17 +1168,53 @@ class Encoder_triplane(nn.Module):
                                 self.temb_ch),
             ])
 
-        # compute in_ch_mult, block_in and curr_res at lowest res
-        in_ch_mult = (1,)+tuple(ch_mult)
-        block_in = ch*ch_mult[self.num_resolutions-1]
-        curr_res = resolution // 2**(self.num_resolutions-1)
 
         # z to block_in
         self.conv_in = torch.nn.Conv2d(in_channels,
-                                       block_in,
+                                       self.ch,
                                        kernel_size=3,
                                        stride=1,
                                        padding=1)
+
+        in_ch_mult = (1,)+tuple(ch_mult)
+        self.in_ch_mult = in_ch_mult
+        curr_res = resolution
+        self.down = nn.ModuleList()
+        for i_level in range(self.num_resolutions):
+            block = nn.ModuleList()
+            attn = nn.ModuleList()
+            inter_attn = nn.ModuleList()
+            block_in = ch*in_ch_mult[i_level]
+            block_out = ch*ch_mult[i_level]
+            for i_block in range(self.num_res_blocks):
+                block.append(ResnetBlock(in_channels=block_in,
+                                         out_channels=block_out,
+                                         temb_channels=self.temb_ch,
+                                         dropout=dropout))
+                block_in = block_out
+                if curr_res in attn_resolutions:
+                    attn.append(make_attn(block_in, attn_type=attn_type))
+                
+            if curr_res in inter_attn_resolutions:
+                inter_attn.append(ResnetBlock(in_channels=block_in*3,
+                                       out_channels=block_in*3,
+                                       temb_channels=self.temb_ch,
+                                       dropout=dropout))
+                inter_attn.append(make_attn(block_in*3, attn_type=attn_type))
+                inter_attn.append(ResnetBlock(in_channels=block_in*3,
+                                       out_channels=block_in*3,
+                                       temb_channels=self.temb_ch,
+                                       dropout=dropout))
+
+            down = nn.Module()
+            down.block = block
+            down.attn = attn
+            down.inter_attn = inter_attn
+            if i_level != self.num_resolutions-1:
+                down.downsample = Downsample(block_in, resamp_with_conv)
+                curr_res = curr_res // 2
+            self.down.append(down)
+
 
         # middle
         self.mid = nn.Module()
@@ -1412,35 +1229,15 @@ class Encoder_triplane(nn.Module):
                                        dropout=dropout)
 
         # modify
-        self.mid_attn = make_attn(block_in, attn_type='vanilla-1d')
-
-        # upsampling
-        self.down = nn.ModuleList()
-        for i_level in range(self.num_resolutions):
-            block = nn.ModuleList()
-            attn = nn.ModuleList()
-            inter_attn = nn.ModuleList()
-            block_out = ch*ch_mult[i_level]
-            for i_block in range(self.num_res_blocks+1):
-                block.append(ResnetBlock(in_channels=block_in,
-                                         out_channels=block_out,
-                                         temb_channels=self.temb_ch,
-                                         dropout=dropout))
-                block_in = block_out
-                if curr_res in attn_resolutions:
-                    attn.append(make_attn(block_in, attn_type=attn_type))
-                
-            if curr_res in inter_attn_resolutions:
-                inter_attn.append(make_attn(block_in, attn_type='vanilla-1d'))
-
-            down = nn.Module()
-            down.block = block
-            down.attn = attn
-            down.inter_attn = inter_attn
-            if i_level != self.num_resolutions-1:
-                down.downsample = Downsample(block_in, resamp_with_conv)
-                curr_res = curr_res * 2
-            self.down.insert(0, down) # prepend to get consistent order
+        self.mid.block_3 = ResnetBlock(in_channels=block_in*3,
+                                       out_channels=block_in*3,
+                                       temb_channels=self.temb_ch,
+                                       dropout=dropout)
+        self.mid_attn = make_attn(block_in*3, attn_type=attn_type)
+        self.mid.block_4 = ResnetBlock(in_channels=block_in*3,
+                                       out_channels=block_in*3,
+                                       temb_channels=self.temb_ch,
+                                       dropout=dropout)
 
         # end
         self.norm_out = Normalize(block_in)
@@ -1462,6 +1259,50 @@ class Encoder_triplane(nn.Module):
         h_yt = self.conv_in(h_yt)
         h_xt = self.conv_in(h_xt)
 
+        for i_level in range(self.num_resolutions):
+            for i_block in range(self.num_res_blocks):
+                h_xy = self.down[i_level].block[i_block](h_xy, temb)
+                h_yt = self.down[i_level].block[i_block](h_yt, temb)
+                h_xt = self.down[i_level].block[i_block](h_xt, temb)
+
+                if len(self.down[i_level].attn) > 0:
+                    h_xy = self.down[i_level].attn[i_block](h_xy)
+                    h_yt = self.down[i_level].attn[i_block](h_yt)
+                    h_xt = self.down[i_level].attn[i_block](h_xt)
+
+            if len(self.down[i_level].inter_attn) > 0:
+                res = h_xy.size(-2)
+                t   = h_xt.size(-2)
+                ch = h_xy.size(1)
+
+                #h_xy = h_xy.permute(0, 2, 3, 1).contiguous()
+                #h_xy = h_xy.view(h_xy.size(0), h_xy.size(1)*h_xy.size(2), -1)
+                #h_xy = h_xy.view(h_xy.size(0), h_xy.size(1), -1)
+                #h_yt = h_yt.permute(0, 2, 3, 1).contiguous()
+                #h_yt = h_yt.view(h_yt.size(0), h_yt.size(1)*h_yt.size(2), -1)
+                #h_yt = h_yt.view(h_yt.size(0), h_yt.size(1), -1)
+                #h_xt = h_xt.permute(0, 2, 3, 1).contiguous()
+                #h_xt = h_xt.view(h_xt.size(0), h_xt.size(1)*h_xt.size(2), -1)
+                #h_xt = h_xt.view(h_xt.size(0), h_xt.size(1), -1)
+
+                h = torch.cat([h_xy, h_yt, h_xt], dim=1)
+                h = self.down[i_level].inter_attn[0](h, temb)
+                h = self.down[i_level].inter_attn[1](h)
+                h = self.down[i_level].inter_attn[2](h, temb)
+
+                h_xy = h[:, :ch]#.view(h.size(0), h.size(1), res, res)
+                h_yt = h[:, ch:ch*2]
+                h_xt = h[:, 2*ch:]
+            
+            if i_level != self.num_resolutions-1:
+                h_xy = self.down[i_level].downsample(h_xy)
+                h_yt = self.down[i_level].downsample(h_yt)
+                h_xt = self.down[i_level].downsample(h_xt)
+
+        # end
+        if self.give_pre_end:
+            return h
+
         # middle
         h_xy = self.mid.block_1(h_xy, temb)
         h_xy = self.mid.attn_1(h_xy)
@@ -1477,53 +1318,18 @@ class Encoder_triplane(nn.Module):
 
         res = h_xy.size(-2)
         t   = h_xt.size(-2)
+        ch = h_xy.size(1)
 
-        h_xy = h_xy.view(h_xy.size(0), h_xy.size(1), -1)
-        h_yt = h_yt.view(h_yt.size(0), h_yt.size(1), -1)
-        h_xt = h_xt.view(h_xt.size(0), h_xt.size(1), -1)
 
-        h = torch.cat([h_xy, h_xt, h_yt], dim=-1)
+        h = torch.cat([h_xy, h_yt, h_xt], dim=1)
+        h = self.mid.block_3(h, temb)
         h = self.mid_attn(h)
+        h = self.mid.block_4(h, temb)
+        #h = self.mid_attn(h)
 
-        h_xy = h[:, :, 0:res*res].view(h.size(0), h.size(1), res, res)
-        h_xt = h[:, :, res*res:res*(res+t)].view(h.size(0), h.size(1), t, res)
-        h_yt = h[:, :, res*(res+t):res*(res+t+t)].view(h.size(0), h.size(1), t, res)
-
-        # upsampling
-        for i_level in reversed(range(self.num_resolutions)):
-            for i_block in range(self.num_res_blocks+1):
-                h_xy = self.down[i_level].block[i_block](h_xy, temb)
-                h_yt = self.down[i_level].block[i_block](h_yt, temb)
-                h_xt = self.down[i_level].block[i_block](h_xt, temb)
-
-                if len(self.down[i_level].attn) > 0:
-                    h_xy = self.down[i_level].attn[i_block](h_xy)
-                    h_yt = self.down[i_level].attn[i_block](h_yt)
-                    h_xt = self.down[i_level].attn[i_block](h_xt)
-
-            if len(self.down[i_level].inter_attn) > 0:
-                res = h_xy.size(-2)
-                t   = h_xt.size(-2)
-
-                h_xy = h_xy.view(h_xy.size(0), h_xy.size(1), -1)
-                h_yt = h_yt.view(h_yt.size(0), h_yt.size(1), -1)
-                h_xt = h_xt.view(h_xt.size(0), h_xt.size(1), -1)
-
-                h = torch.cat([h_xy, h_xt, h_yt], dim=-1)
-                h = self.down[i_level].inter_attn[0](h)
-
-                h_xy = h[:, :, 0:res*res].view(h.size(0), h.size(1), res, res)
-                h_xt = h[:, :, res*res:res*(res+t)].view(h.size(0), h.size(1), t, res)
-                h_yt = h[:, :, res*(res+t):res*(res+t+t)].view(h.size(0), h.size(1), t, res)
-            
-            if i_level != 0:
-                h_xy = self.down[i_level].downsample(h_xy)
-                h_yt = self.down[i_level].downsample(h_yt)
-                h_xt = self.down[i_level].downsample(h_xt)
-
-        # end
-        if self.give_pre_end:
-            return h
+        h_xy = h[:, :ch]#.view(h.size(0), h.size(1), res, res)
+        h_yt = h[:, ch:ch*2]
+        h_xt = h[:, 2*ch:]
 
         h_xy = self.norm_out(h_xy)
         h_yt = self.norm_out(h_yt)
@@ -1536,8 +1342,7 @@ class Encoder_triplane(nn.Module):
         h_xy = self.conv_out(h_xy)
         h_yt = self.conv_out(h_yt)
         h_xt = self.conv_out(h_xt)
-        return h_xy, h_yt, h_xt
-    
+        return h_xy, h_yt, h_xt 
 
 class Decoder_triplane(nn.Module):
     def __init__(self, *, ch, out_ch, ch_mult=(1,2,4,8), num_res_blocks,
@@ -1592,7 +1397,16 @@ class Decoder_triplane(nn.Module):
                                        dropout=dropout)
 
         # modify
-        self.mid_attn = make_attn(block_in, attn_type='vanilla-1d')
+        self.mid.block_3 = ResnetBlock(in_channels=block_in*3,
+                                       out_channels=block_in*3,
+                                       temb_channels=self.temb_ch,
+                                       dropout=dropout)
+        self.mid_attn = make_attn(block_in*3, attn_type=attn_type)
+        self.mid.block_4 = ResnetBlock(in_channels=block_in*3,
+                                       out_channels=block_in*3,
+                                       temb_channels=self.temb_ch,
+                                       dropout=dropout)
+        
 
         # upsampling
         self.up = nn.ModuleList()
@@ -1612,7 +1426,15 @@ class Decoder_triplane(nn.Module):
                     attn.append(make_attn(block_in, attn_type=attn_type))
                 
             if curr_res in inter_attn_resolutions:
-                inter_attn.append(make_attn(block_in, attn_type='vanilla-1d'))
+                inter_attn.append(ResnetBlock(in_channels=block_in*3,
+                                       out_channels=block_in*3,
+                                       temb_channels=self.temb_ch,
+                                       dropout=dropout))
+                inter_attn.append(make_attn(block_in*3, attn_type=attn_type))
+                inter_attn.append(ResnetBlock(in_channels=block_in*3,
+                                       out_channels=block_in*3,
+                                       temb_channels=self.temb_ch,
+                                       dropout=dropout))
 
             if curr_res in hdbf_resolutions:
                 hdbf.append(nn.Conv2d(block_in, out_ch, 1))
@@ -1667,17 +1489,16 @@ class Decoder_triplane(nn.Module):
 
         res = h_xy.size(-2)
         t   = h_xt.size(-2)
+        ch = h_xy.size(1)
 
-        h_xy = h_xy.view(h_xy.size(0), h_xy.size(1), -1)
-        h_yt = h_yt.view(h_yt.size(0), h_yt.size(1), -1)
-        h_xt = h_xt.view(h_xt.size(0), h_xt.size(1), -1)
-
-        h = torch.cat([h_xy, h_xt, h_yt], dim=-1)
+        h = torch.cat([h_xy, h_yt, h_xt], dim=1)
+        h = self.mid.block_3(h, temb)
         h = self.mid_attn(h)
+        h = self.mid.block_4(h, temb)
 
-        h_xy = h[:, :, 0:res*res].view(h.size(0), h.size(1), res, res)
-        h_xt = h[:, :, res*res:res*(res+t)].view(h.size(0), h.size(1), t, res)
-        h_yt = h[:, :, res*(res+t):res*(res+t+t)].view(h.size(0), h.size(1), t, res)
+        h_xy = h[:, :ch]#.view(h.size(0), h.size(1), res, res)
+        h_yt = h[:, ch:ch*2]
+        h_xt = h[:, 2*ch:]
 
         # upsampling
         for i_level in reversed(range(self.num_resolutions)):
@@ -1694,17 +1515,17 @@ class Decoder_triplane(nn.Module):
             if len(self.up[i_level].inter_attn) > 0:
                 res = h_xy.size(-2)
                 t   = h_xt.size(-2)
+                ch = h_xy.size(1)
 
-                h_xy = h_xy.view(h_xy.size(0), h_xy.size(1), -1)
-                h_yt = h_yt.view(h_yt.size(0), h_yt.size(1), -1)
-                h_xt = h_xt.view(h_xt.size(0), h_xt.size(1), -1)
 
-                h = torch.cat([h_xy, h_xt, h_yt], dim=-1)
-                h = self.up[i_level].inter_attn[0](h)
+                h = torch.cat([h_xy, h_yt, h_xt], dim=1)
+                h = self.up[i_level].inter_attn[0](h, temb)
+                h = self.up[i_level].inter_attn[1](h)
+                h = self.up[i_level].inter_attn[2](h, temb)
 
-                h_xy = h[:, :, 0:res*res].view(h.size(0), h.size(1), res, res)
-                h_xt = h[:, :, res*res:res*(res+t)].view(h.size(0), h.size(1), t, res)
-                h_yt = h[:, :, res*(res+t):res*(res+t+t)].view(h.size(0), h.size(1), t, res)
+                h_xy = h[:, :ch]#.view(h.size(0), h.size(1), res, res)
+                h_yt = h[:, ch:ch*2]
+                h_xt = h[:, 2*ch:]
 
             if len(self.up[i_level].hdbf) > 0:
                 inter_bf_xy = self.up[i_level].hdbf[0](h_xy)
