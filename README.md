@@ -135,6 +135,8 @@ python main.py --exp ldm --configs configs/ldm/img.yaml
 ```
 For arbitrary-resolution 2D image generation with consistent content, you only have to change `test_resolution`  of config files with a fixed seed.
 
+# Checkpoints
+Checkpoints for pre-trained model will be released soon.
 
 # Acknowledgement
 This repo is built upon [ADM](https://github.com/openai/guided-diffusion), [latent-diffusion](https://github.com/CompVis/latent-diffusion), and [PVDM](https://github.com/sihyun-yu/PVDM).
