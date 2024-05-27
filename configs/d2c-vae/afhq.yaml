@@ -9,7 +9,7 @@ model:
       multiscale: True
       adversarial: False
       disc_weight: -1
-      epochs: 400
+      epochs: 200
       warmup_epochs: 5
       kl_anneal: True
       kl_max_coeff: 0.5

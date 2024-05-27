@@ -1,0 +1,81 @@
+model:
+  DiT: False
+  pretrained: True
+  resume: False
+  use_fp16: True
+  amp: True
+  lr: 1e-4
+  embed_dim: 64
+  params:
+    lossconfig:
+      epochs: 3000
+      save_and_sample_every: 25
+      ema_decay: 0.9999
+      ema_update_every: 5
+      gradient_accumulate_every: 5
+
+    unetconfig:
+      size1: 16
+      size2: 16
+      size3: 16
+      image_size: 16
+      in_channels: 192
+      model_channels: 256
+      out_channels: 192
+      attention_resolutions:
+      - 8
+      - 4
+      - 2
+      num_res_blocks: 2
+      channel_mult:
+      - 1
+      - 2
+      - 4
+      - 6
+      num_head_channels: 32
+      use_checkpoint: False
+      use_fp16: False
+
+    ddconfig:
+      double_z: True
+      z_channels: 128
+      resolution: 64 # need to match the resolution after pointnet encoder
+      in_channels: 32 # need to match feature dimension after pointnet encoder
+      out_ch: 32
+      ch: 64
+      ch_mult:
+      - 1
+      - 2
+      - 4
+      num_res_blocks: 2
+      attn_resolutions: []
+      hdbf_resolutions: []
+      inter_attn_resolutions: [64, 32, 16]
+      dropout: 0.0
+      attn_type: vanilla
+
+    mlpconfig:
+      D: 6
+      W: 256
+      in_channels_xyz: 159
+      skips: [2,4]
+    
+    ddpmconfig:
+      timesteps: 1000
+      image_size: 16
+      channels: 192
+      clip_denoised: False
+      mixed_prediction: True
+      mixed_init: -6
+      sampling_timesteps: 200
+      ddim_sampling_eta: 0.
+      domain: occupancy
+
+data:
+  domain: nerf
+  mode: gen
+  save_pth: ./save_pth
+  batch_size: 32
+  test_batch_size: 3
+  conv_config: convocc/configs/pointcloud/srncars_nerf_3plane.yaml
+  test_resolution: 256

@@ -71,7 +71,7 @@ class LDMTrainer(object):
 
         if args.resume:
             print('Loading Models from previous training!')
-            self.load(os.path.join(args.data_config.save_pth, 'ldm-last.pt'))
+            self.load(os.path.join(args.data_config.save_pth, 'ldm-9000.pt'))
             print('Current Epochs :', self.step)
             print('Current iters :', self.current_iters)
         else:
@@ -147,8 +147,9 @@ class LDMTrainer(object):
                                 posterior_xy, posterior_yt, posterior_xt = self.vaemodel.encode(x)
 
                         ## LDM
-                        b, c = posterior_xy.size(0), posterior_xy.size(1)
-                        z = torch.cat([posterior_xy.reshape(b, c, -1), posterior_xt.reshape(b, c, -1), posterior_yt.reshape(b, c, -1)], dim = 2)
+                        z_xy, z_yt, z_xt = posterior_xy.sample(), posterior_yt.sample(), posterior_xt.sample()
+                        b, c = z_xy.size(0), z_xy.size(1)
+                        z = torch.cat([z_xy.reshape(b, c, -1), z_xt.reshape(b, c, -1), z_yt.reshape(b, c, -1)], dim = -1)
                         z = z.detach()
                         p_loss,_ = self.diffusion_process(z)
                         p_loss = p_loss / self.gradient_accumulate_every
@@ -216,19 +217,20 @@ class LDMTrainer(object):
                                             wstart=-(self.test_resolution-1)/self.test_resolution, wend=255/self.test_resolution, tstart = -15/16, tend = 15/16)
         shape = [self.test_batch_size, self.channels, self.size1*self.size2 + self.size1*self.size3 + self.size2*self.size3]
 
-        self.ema.ema_model.eval()
-        with self.accelerator.autocast():
-            with torch.inference_mode():
-                z_test = self.ema.ema_model.sample(shape=shape)
-                if isinstance(self.vaemodel, torch.nn.parallel.DistributedDataParallel):
-                    pe_test = self.vaemodel.module.decode(z_test)
-                else:
-                    pe_test = self.vaemodel.decode(z_test)
-                output_img = self.mlp(coords, pe_test)
-        output_img = output_img.clamp(min = -1., max = 1.)
-        output_img = (output_img + 1) / 2
+        for i in range(1):
+            self.ema.ema_model.eval()
+            with self.accelerator.autocast():
+                with torch.inference_mode():
+                    z_test = self.ema.ema_model.sample(shape=shape)
+                    if isinstance(self.vaemodel, torch.nn.parallel.DistributedDataParallel):
+                        pe_test = self.vaemodel.module.decode(z_test)
+                    else:
+                        pe_test = self.vaemodel.decode(z_test)
+                    output_img = self.mlp(coords, pe_test)
+            output_img = output_img.clamp(min = -1., max = 1.)
+            output_img = (output_img + 1) / 2
 
-        step_save_pth = os.path.join(self.results_folder, 'generation'.format(self.step))
-        os.makedirs(step_save_pth, exist_ok=True)
-        for ci in range(output_img.shape[2]):
-            vtils.save_image(output_img[:,:,ci], os.path.join(step_save_pth, 'gen-{}-{}.png'.format(ci, self.step)), normalize = False, scale_each = False)
+            step_save_pth = os.path.join(self.results_folder, 'generation-{}'.format(i))
+            os.makedirs(step_save_pth, exist_ok=True)
+            for ci in range(output_img.shape[2]):
+                vtils.save_image(output_img[:,:,ci], os.path.join(step_save_pth, 'gen-{}-{}.png'.format(ci, self.step)), normalize = False, scale_each = False)

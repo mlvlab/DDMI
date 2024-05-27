@@ -1,6 +1,6 @@
 model:
   DiT: False
-  pretrained: False
+  pretrained: True
   resume: False
   use_fp16: True
   amp: True
@@ -63,8 +63,8 @@ model:
       clip_denoised: False
       mixed_prediction: True
       mixed_init: -6
-      sampling_timesteps: 1000
-      ddim_sampling_eta: 1
+      sampling_timesteps: 50
+      ddim_sampling_eta: 0
 
 data:
   domain: image

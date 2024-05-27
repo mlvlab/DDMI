@@ -194,7 +194,6 @@ class D2CTrainer(object):
                     with self.accelerator.autocast():
                         ## pointclouds to grid planes using local point pooling network
                         f_planes = self.pointnet(points)
-                        #z = torch.cat([f_planes['xy'], f_planes['yz'], f_planes['xz']], dim = 1)
                         if isinstance(self.vaemodel, torch.nn.parallel.DistributedDataParallel):
                             posterior_xy, posterior_yz, posterior_xz = self.vaemodel.module.encode([f_planes['xy'], f_planes['yz'], f_planes['xz']])
                             z = torch.cat([posterior_xy.sample(), posterior_yz.sample(), posterior_xz.sample()], dim = 1)
