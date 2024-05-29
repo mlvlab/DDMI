@@ -84,7 +84,7 @@ Data
 ```
 
 # Training
-To train other signal domains, you may change the `domain` of config files in `configs/`, e.g., `image`, `occupancy`, `nerf`, or `video`. Currently, different network is trained for different signal domain. By default, the model's checkpoint will be stored in `./results`. If training D2C-VAE in the first stage is unstable, i.e., NAN value, try increasing `sn_reg_weight_decay` or `sn_reg_weight_decay_init` of config files to increase the weight of spectral regularization.
+To train other signal domains, you may change the `domain` of config files in `configs/`, e.g., `image`, `occupancy`, `nerf`, or `video`. Currently, different network is trained for different signal domain. By default, the model's checkpoint will be stored in `./results`. If training D2C-VAE in the first stage is unstable, i.e., NAN value, try increasing `sn_reg_weight_decay` or `sn_reg_weight_decay_init` of config files to increase the weight of spectral regularization. To resume the training from previous checkpoint enable `resume` to `True`.
 ## First-stage training (Discrete to Continuous space VAE)
 D2C-VAE aims to learn the latent space that generates PEs between discrete data and continuous function, i.e., point clouds to occupancy function, pixel image to continuous RGB image.
 ```bash
@@ -100,15 +100,15 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --multi_gpu --num_processes=4 mai
 
 # Evaluation
 In our paper, we have utilized several evaluation metrics for assessing generation quality: FID for image, MMD and COV for 3D shape, and FVD for video evaluation.
-You can change the total number sampling steps (NFE) by changing the `sampling_timesteps` in config file.
+You can change the total number of sampling steps (NFE) by changing the `sampling_timesteps` in the config file.
 ### Image
-To evaluate FID of trained 2D image model, run the following script by changing the `mode` of config files to `eval` from `train`:
+To evaluate FID of the trained 2D image model, run the following script by changing the `mode` of config files to `eval` from `train`:
 ```bash
 python main.py --exp ldm --configs configs/ldm/img.yaml
 ```
 
 ### Video
-To evaluate FVD of trained video model, run the following script by changing the `mode` of config files to `eval` from `train`:
+To evaluate FVD of the trained video model, run the following script by changing the `mode` of config files to `eval` from `train`:
 ```bash
 python main.py --exp ldm --configs configs/ldm/video.yaml
 ```
@@ -136,7 +136,7 @@ python main.py --exp ldm --configs configs/ldm/img.yaml
 For arbitrary-resolution 2D image generation with consistent content, you only have to change `test_resolution`  of config files with a fixed seed.
 
 # Checkpoints
-Checkpoints for pre-trained model will be released soon.
+Checkpoints for the pre-trained models can be downloaded from [here](https://drive.google.com/drive/folders/1G72NGIU1f4TgV5Jq6TCuZHqrqfpBXVaM?usp=sharing). Download the checkpoint in `./results` folder and change the `pretrained` of config file to `True` for evaluation.
 
 # Acknowledgement
 This repo is built upon [ADM](https://github.com/openai/guided-diffusion), [latent-diffusion](https://github.com/CompVis/latent-diffusion), and [PVDM](https://github.com/sihyun-yu/PVDM).
