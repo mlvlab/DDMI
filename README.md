@@ -143,10 +143,10 @@ This repo is built upon [ADM](https://github.com/openai/guided-diffusion), [late
 
 # Citation
 ```bibtex
-@article{park2024ddmi,
+@inproceedings{park2024ddmi,
   title={DDMI: Domain-Agnostic Latent Diffusion Models for Synthesizing High-Quality Implicit Neural Representations},
   author={Park, Dogyun and Kim, Sihyeon and Lee, Sojin and Kim, Hyunwoo J},
-  journal={arXiv preprint arXiv:2401.12517},
+  booktitle={The Twelfth International Conference on Learning Representations},
   year={2024}
 }
 ```
