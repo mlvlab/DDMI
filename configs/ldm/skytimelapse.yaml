@@ -37,7 +37,7 @@ model:
 
     ddconfig:
       double_z: True
-      timesformer_channels: 512
+      timesformer_channels: 384
       splits: 1
       patch_size: 8
       resolution: 256
@@ -55,7 +55,7 @@ model:
       hdbf_resolutions: [128, 64]
       inter_attn_resolutions: [32, 64, 128, 256]
       dropout: 0.0
-      attn_type: vanilla-multihead-expand
+      attn_type: vanilla-multihead
 
     mlpconfig:
       in_ch: 2

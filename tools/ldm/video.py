@@ -71,14 +71,14 @@ class LDMTrainer(object):
 
         if args.resume:
             print('Loading Models from previous training!')
-            self.load(os.path.join(args.data_config.save_pth, 'ldm-9000.pt'))
+            self.load(os.path.join(args.data_config.save_pth, 'ldm-last.pt'))
             print('Current Epochs :', self.step)
             print('Current iters :', self.current_iters)
         else:
             # Load from checkpoint
             print('Load VAE checkpoints!')
             data_pth = torch.load(os.path.join(args.data_config.save_pth, 'model-last.pt'), map_location='cpu')
-            self.vaemodel.load_state_dict(data_pth['model'])
+            self.vaemodel.load_state_dict(data_pth['vaemodel'])
             self.mlp.load_state_dict(data_pth['mlp'])
 
         # Wrap with accelerator

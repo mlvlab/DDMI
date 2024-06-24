@@ -272,16 +272,18 @@ def test_rfvd(vaemodel, mlp, coords, loader, device, accelerator, logger=None):
             real = real.to(device)
             with accelerator.autocast():
                 if isinstance(vaemodel, torch.nn.parallel.DistributedDataParallel):
-                    xy, yt, xt = vaemodel.module.encode(rearrange(real / 127.5 - 1, 'b t c h w -> b c t h w'))
+                    posterior_xy, posterior_yt, posterior_xt = vaemodel.module.encode(rearrange(real / 127.5 - 1, 'b t c h w -> b c t h w'))
+                    xy, yt, xt = posterior_xy.sample(), posterior_yt.sample(), posterior_xt.sample()
                     b, c = xy.shape[0], xy.shape[1]
                     z = torch.cat([xy.reshape(b, c, -1), xt.reshape(b, c, -1), yt.reshape(b, c, -1)], dim = 2)
-                    xy, yt, xt = vaemodel.module.decode(z)
+                    pe_xy, pe_yt, pe_xt = vaemodel.module.decode(z)
                 else:
-                    xy, yt, xt = vaemodel.encode(rearrange(real / 127.5 - 1, 'b t c h w -> b c t h w'))
+                    posterior_xy, posterior_yt, posterior_xt = vaemodel.encode(rearrange(real / 127.5 - 1, 'b t c h w -> b c t h w'))
+                    xy, yt, xt = posterior_xy.sample(), posterior_yt.sample(), posterior_xt.sample()
                     b, c = xy.shape[0], xy.shape[1]
                     z = torch.cat([xy.reshape(b, c, -1), xt.reshape(b, c, -1), yt.reshape(b, c, -1)], dim = 2)
-                    xy, yt, xt = vaemodel.decode(z)
-                fake = mlp(coords, (xy, yt, xt))
+                    pe_xy, pe_yt, pe_xt = vaemodel.decode(z)
+                fake = mlp(coords, (pe_xy, pe_yt, pe_xt))
 
             real = rearrange(real, 'b t c h w -> b t h w c') # videos
             fake = rearrange((fake.clamp(-1,1) + 1) * 127.5, 'b c t h w -> b t h w c', b=real.size(0))
@@ -310,6 +312,7 @@ def test_rfvd(vaemodel, mlp, coords, loader, device, accelerator, logger=None):
 
 def test_fvd_ddpm(ema, vaemodel, mlp, coords, loader, accelerator, shape, path=None, save=False):
     device = accelerator.device
+    channel, size1, size2, size3 = shape[0], shape[1], shape[2], shape[3]
     real_embeddings = []
     fake_embeddings = []
 
@@ -324,13 +327,13 @@ def test_fvd_ddpm(ema, vaemodel, mlp, coords, loader, accelerator, shape, path=N
             real_embeddings.append(get_fvd_logits(real.numpy(), i3d=i3d, device=device))
 
             with accelerator.autocast():
-                z_test = ema.ema_model.sample(shape=shape)
+                z_test = ema.ema_model.sample(shape=[real.shape[0], channel, size1*size2 + size1*size3 + size2*size3])
                 if isinstance(vaemodel, torch.nn.parallel.DistributedDataParallel):
                     pe_test = vaemodel.module.decode(z_test)
                 else:
                     pe_test = vaemodel.decode(z_test)
                 fake = mlp(coords, pe_test)
-            fake = rearrange((fake.clamp(-1,1) + 1) * 127.5, 'b c t h w -> b t h w c', b=shape[0])
+            fake = rearrange((fake.clamp(-1,1) + 1) * 127.5, 'b c t h w -> b t h w c', b=z_test.shape[0])
             fake = fake.type(torch.uint8)
             fake_embeddings.append(get_fvd_logits(fake.cpu().numpy(), i3d=i3d, device=device))
     real_embeddings = torch.cat(real_embeddings)
