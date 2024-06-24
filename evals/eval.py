@@ -273,10 +273,14 @@ def test_rfvd(vaemodel, mlp, coords, loader, device, accelerator, logger=None):
             with accelerator.autocast():
                 if isinstance(vaemodel, torch.nn.parallel.DistributedDataParallel):
                     xy, yt, xt = vaemodel.module.encode(rearrange(real / 127.5 - 1, 'b t c h w -> b c t h w'))
-                    xy, yt, xt = vaemodel.module.decode(xy.sample(), yt.sample(), xt.sample())
+                    b, c = xy.shape[0], xy.shape[1]
+                    z = torch.cat([xy.reshape(b, c, -1), xt.reshape(b, c, -1), yt.reshape(b, c, -1)], dim = 2)
+                    xy, yt, xt = vaemodel.module.decode(z)
                 else:
                     xy, yt, xt = vaemodel.encode(rearrange(real / 127.5 - 1, 'b t c h w -> b c t h w'))
-                    xy, yt, xt = vaemodel.decode(xy.sample(), yt.sample(), xt.sample())
+                    b, c = xy.shape[0], xy.shape[1]
+                    z = torch.cat([xy.reshape(b, c, -1), xt.reshape(b, c, -1), yt.reshape(b, c, -1)], dim = 2)
+                    xy, yt, xt = vaemodel.decode(z)
                 fake = mlp(coords, (xy, yt, xt))
 
             real = rearrange(real, 'b t c h w -> b t h w c') # videos
