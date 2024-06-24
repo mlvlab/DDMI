@@ -184,7 +184,7 @@ class D2CTrainer(object):
                     assert len(x.shape) == 5
                     x = (x / 127.5) - 1
                     x = x.permute(0, 2, 1, 3, 4).contiguous()
-                    b, c, t, h, w = x.shape
+                    batch, channel, t, h, w = x.shape
                     
                     #self.opt.zero_grad()
                     with self.accelerator.autocast():
@@ -207,8 +207,8 @@ class D2CTrainer(object):
 
                             ## Perceptual loss
                             p_coeff = 1.
-                            frame_idx = torch.randint(0, t, [b]).to(device)
-                            frame_idx_selected = frame_idx.reshape(-1, 1, 1, 1, 1).repeat(1, c, 1, h, w)
+                            frame_idx = torch.randint(0, t, [batch]).to(device)
+                            frame_idx_selected = frame_idx.reshape(-1, 1, 1, 1, 1).repeat(1, channel, 1, h, w)
                             inputs_2d = torch.gather(x, 2, frame_idx_selected).squeeze(2)
                             recon_2d = torch.gather(output, 2, frame_idx_selected).squeeze(2)
                             p_loss = self.perceptual_loss(inputs_2d.contiguous(), recon_2d.contiguous()).mean()

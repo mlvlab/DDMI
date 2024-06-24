@@ -17,7 +17,7 @@ from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 from PIL import Image
 from models.d2c_vae.vit_modules import TimeSformerEncoder
-from models.d2c_vae.autoencoder_unet import Decoder, VideoDecoder, VideoDecoder_light
+from models.d2c_vae.autoencoder_unet import Decoder, VideoDecoder_light
 from models.ldm.modules.distributions import DiagonalGaussianDistribution
 
 class PreNorm(nn.Module):

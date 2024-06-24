@@ -69,7 +69,7 @@ model:
       mixed_init: -6
       sampling_timesteps: 200
       ddim_sampling_eta: 0.
-      domain: occupancy
+      domain: nerf
 
 data:
   domain: nerf
